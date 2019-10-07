@@ -100,3 +100,4 @@ Set Printing Coercions.
 Check (b 0).
 Unset Printing Coercions.
 
+Print Graph.
