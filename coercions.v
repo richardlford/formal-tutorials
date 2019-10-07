@@ -5,6 +5,10 @@
 (* We first give an example of coercion between atomic inductive types. *)
 Definition bool_in_nat (b:bool) := if b then 0 else 1.
 Coercion bool_in_nat : bool >-> nat.
+
+(* Alternately: *)
+Coercion bool_in_nat' (b:bool) := if b then 0 else 1.
+
 Check (0 = true).
 Set Printing Coercions.
 Check (0 = true).
@@ -101,3 +105,5 @@ Check (b 0).
 Unset Printing Coercions.
 
 Print Graph.
+Print Classes.
+Print Coercions.
