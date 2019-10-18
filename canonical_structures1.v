@@ -1,5 +1,8 @@
-(* 
-.. _canonicalstructures:
+(* Second part of the canonical structures documentation from the 
+   Coq reference manual.
+ *)
+
+(* .. _canonicalstructures:
 
 Canonical Structures
 ======================
@@ -77,7 +80,11 @@ We amend that by equipping ``nat`` with a comparison relation.
    Definition nat_EQcl : EQ.class nat := EQ.Class nat_eq.
    Canonical Structure nat_EQty : EQ.type := EQ.Pack nat nat_EQcl.
    Check 3 == 3.
+   Print Canonical Projections.
+   
    Eval compute in 3 == 4.
+   Print Canonical Projections.
+   Definition ThreeFour := 3 == 4.
 
 (*
 This last test shows that |Coq| is now not only able to type check ``3 == 3``,
@@ -178,6 +185,7 @@ As before we register a canonical ``LE`` class for ``nat``.
   Definition nat_LEcl : LE.class nat := LE.Class nat_le.
 
   Canonical Structure nat_LEty : LE.type := LE.Pack nat nat_LEcl.
+  Print Canonical Projections.
 
 (*
 And we enable |Coq| to relate pair of terms with ``<=``.
@@ -191,6 +199,7 @@ And we enable |Coq| to relate pair of terms with ``<=``.
 
   Canonical Structure pair_LEty (e1 e2 : LE.type) : LE.type :=
      LE.Pack (LE.obj e1 * LE.obj e2) (pair_LEcl e1 e2).
+  Print Canonical Projections.
 
   Check (3,4,5) <= (3,4,5).
 
@@ -262,11 +271,13 @@ type.
        EQ.Pack (obj e) (EQ_class _ (class_of e)).
 
     Canonical Structure to_EQ.
+    Print Canonical Projections.
 
     Definition to_LE (e : type) : LE.type :=
        LE.Pack (obj e) (LE_class _ (class_of e)).
  
     Canonical Structure to_LE.
+    Print Canonical Projections.
 
 (*
 We can now formulate out first theorem on the objects of the ``LEQ``

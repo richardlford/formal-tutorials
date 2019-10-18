@@ -1,0 +1,66 @@
+From ssreflect.v:
+
+Module NonPropType.
+
+Structure call_of (condition : unit) (result : bool) := Call {callee : Type}.
+Definition maybeProp (T : Type) := tt.
+Definition call T := Call (maybeProp T) false T.
+(*
+call = 
+fun T : Type => {| callee := T |}
+     : forall T : Type, call_of (maybeProp T) false
+
+Argument scope is [type_scope]
+call = 
+fun T : Type => Call (maybeProp T) false T
+     : forall T : Type, call_of (maybeProp T) false
+
+Argument scope is [type_scope]
+
+*)
+
+Structure test_of (result : bool) := Test {condition :> unit}.
+Definition test_Prop (P : Prop) := Test true (maybeProp P).
+Definition test_negative := Test false tt.
+
+Structure type :=
+  Check {result : bool; test : test_of result; frame : call_of test result}.
+Definition check result test frame := @Check result test frame.
+
+Module Exports.
+Canonical call.
+Print Canonical Projections.
+(*
+_ <- callee ( call )
+
+*)
+Canonical test_Prop.
+Print Canonical Projections.
+(* maybeProp <- condition ( test_Prop )
+*)
+Canonical test_negative.
+Print Canonical Projections.
+(*
+tt <- condition ( test_negative )
+maybeProp <- condition ( test_Prop )
+_ <- callee ( call )
+*)
+Canonical check.
+Print Canonical Projections.
+(*
+tt <- condition ( test_negative )
+maybeProp <- condition ( test_Prop )
+_ <- result ( check )
+_ <- callee ( call )
+_ <- frame ( check )
+_ <- test ( check )
+
+*)
+Notation nonPropType := type.
+Coercion callee : call_of >-> Sortclass.
+Coercion frame : type >-> call_of.
+Notation notProp T := (@check false test_negative (call T)).
+End Exports.
+
+End NonPropType.
+Export NonPropType.Exports.

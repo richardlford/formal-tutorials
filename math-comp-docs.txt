@@ -1,0 +1,2869 @@
+<!--  -*- mode: org; -*- -->
+
+The mathematical components library, 
+https://math-comp.github.io/, is a library of formalized mathematics
+developed using the Coq proof assistant. For each of its Coq files it
+has introductory comments describing the contents of that file. 
+A graph of the components and dependencies of the mathematical
+components library is available at
+https://math-comp.github.io/htmldoc/libgraph.html. 
+
+This document contains those introductory comments for a (subset of) the
+files that comprise math-comp. These were extracted from the graph by
+clicking on the nodes and following the CoqDoc link. Each section also
+has a link to the corresponding CoqDoc version.
+
+At present this document includes all of the modules that the Matrix
+class depends on.
+
+In addition, documentation from the Coq distribution, for support of
+ssreflect is included. 
+
+* Coq
+This section had documentation for the parts of Coq that support
+ssreflect. Part of this are in the plugins directory. 
+** Coq.ssr
+*** Coq.ssr.ssrbool
+https://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.ssr.ssrbool.html
+#+BEGIN_EXAMPLE
+
+ A theory of boolean predicates and operators. A large part of this file is
+ concerned with boolean reflection.
+ Definitions and notations:
+               is_true b == the coercion of b : bool to Prop (:= b = true).
+                            This is just input and displayed as `b''.
+             reflect P b == the reflection inductive predicate, asserting
+                            that the logical proposition P : prop with the
+                            formula b : bool. Lemmas asserting reflect P b
+                            are often referred to as "views".
+  iffP, appP, sameP, rwP :: lemmas for direct manipulation of reflection
+                            views: iffP is used to prove reflection from
+                            logical equivalence, appP to compose views, and
+                            sameP and rwP to perform boolean and setoid
+                            rewriting.
+                   elimT :: coercion reflect >-> Funclass, which allows the
+                            direct application of `reflect' views to
+                            boolean assertions.
+             decidable P <-> P is effectively decidable (:= {P} + {~ P}.
+    contra, contraL, ... :: contraposition lemmas.
+           altP my_viewP :: natural alternative for reflection; given
+                            lemma myviewP: reflect my_Prop my_formula,
+                              have [myP | not_myP] := altP my_viewP.
+                            generates two subgoals, in which my_formula has
+                            been replaced by true and false, resp., with
+                            new assumptions myP : my_Prop and
+                            not_myP: ~~ my_formula.
+                            Caveat: my_formula must be an APPLICATION, not
+                            a variable, constant, let-in, etc. (due to the
+                            poor behaviour of dependent index matching).
+        boolP my_formula :: boolean disjunction, equivalent to
+                            altP (idP my_formula) but circumventing the
+                            dependent index capture issue; destructing
+                            boolP my_formula generates two subgoals with
+                            assumtions my_formula and ~~ myformula. As
+                            with altP, my_formula must be an application.
+            \unless C, P <-> we can assume property P when a something that
+                            holds under condition C (such as C itself).
+                         := forall G : Prop, (C -> G) -> (P -> G) -> G.
+                            This is just C \/ P or rather its impredicative
+                            encoding, whose usage better fits the above
+                            description: given a lemma UCP whose conclusion
+                            is \unless C, P we can assume P by writing:
+                              wlog hP: / P by apply/UCP; (prove C -> goal).
+                           or even apply: UCP id _ => hP if the goal is C.
+           classically P <-> we can assume P when proving is_true b.
+                         := forall b : bool, (P -> b) -> b.
+                            This is equivalent to ~ (~ P) when P : Prop.
+             implies P Q == wrapper variant type that coerces to P -> Q and
+                            can be used as a P -> Q view unambigously.
+                            Useful to avoid spurious insertion of <-> views
+                            when Q is a conjunction of foralls, as in Lemma
+                            all_and2 below; conversely, avoids confusion in
+                            apply views for impredicative properties, such
+                            as \unless C, P. Also supports contrapositives.
+                  a && b == the boolean conjunction of a and b.
+                  a || b == the boolean disjunction of a and b.
+                 a ==> b == the boolean implication of b by a.
+                    ~~ a == the boolean negation of a.
+                 a (+) b == the boolean exclusive or (or sum) of a and b.
+     [ /\ P1 , P2 & P3 ] == multiway logical conjunction, up to 5 terms.
+     [ \/ P1 , P2 | P3 ] == multiway logical disjunction, up to 4 terms.
+        [&& a, b, c & d] == iterated, right associative boolean conjunction
+                            with arbitrary arity.
+        [|| a, b, c | d] == iterated, right associative boolean disjunction
+                            with arbitrary arity.
+      [==> a, b, c => d] == iterated, right associative boolean implication
+                            with arbitrary arity.
+              and3P, ... == specific reflection lemmas for iterated
+                            connectives.
+       andTb, orbAC, ... == systematic names for boolean connective
+                            properties (see suffix conventions below).
+              prop_congr == a tactic to move a boolean equality from
+                            its coerced form in Prop to the equality
+                            in bool.
+              bool_congr == resolution tactic for blindly weeding out
+                            like terms from boolean equalities (can fail).
+ This file provides a theory of boolean predicates and relations:
+                  pred T == the type of bool predicates (:= T -> bool).
+            simpl_pred T == the type of simplifying bool predicates, using
+                            the simpl_fun from ssrfun.v.
+                   rel T == the type of bool relations.
+                         := T -> pred T or T -> T -> bool.
+             simpl_rel T == type of simplifying relations.
+                predType == the generic predicate interface, supported for
+                            for lists and sets.
+              pred_class == a coercion class for the predType projection to
+                            pred; declaring a coercion to pred_class is an
+                            alternative way of equipping a type with a
+                            predType structure, which interoperates better
+                            with coercion subtyping. This is used, e.g.,
+                            for finite sets, so that finite groups inherit
+                            the membership operation by coercing to sets.
+ If P is a predicate the proposition "x satisfies P" can be written
+ applicatively as (P x), or using an explicit connective as (x \in P); in
+ the latter case we say that P is a "collective" predicate. We use A, B
+ rather than P, Q for collective predicates:
+                 x \in A == x satisfies the (collective) predicate A.
+              x \notin A == x doesn't satisfy the (collective) predicate A.
+ The pred T type can be used as a generic predicate type for either kind,
+ but the two kinds of predicates should not be confused. When a "generic"
+ pred T value of one type needs to be passed as the other the following
+ conversions should be used explicitly:
+             SimplPred P == a (simplifying) applicative equivalent of P.
+                   mem A == an applicative equivalent of A:
+                            mem A x simplifies to x \in A.
+ Alternatively one can use the syntax for explicit simplifying predicates
+ and relations (in the following x is bound in E):
+            [pred x | E] == simplifying (see ssrfun) predicate x => E.
+        [pred x : T | E] == predicate x => E, with a cast on the argument.
+          [pred : T | P] == constant predicate P on type T.
+      [pred x | E1 & E2] == [pred x | E1 && E2]; an x : T cast is allowed.
+           [pred x in A] == [pred x | x in A].
+       [pred x in A | E] == [pred x | x in A & E].
+ [pred x in A | E1 & E2] == [pred x in A | E1 && E2].
+           [predU A & B] == union of two collective predicates A and B.
+           [predI A & B] == intersection of collective predicates A and B.
+           [predD A & B] == difference of collective predicates A and B.
+               [predC A] == complement of the collective predicate A.
+          [preim f of A] == preimage under f of the collective predicate A.
+          predU P Q, ... == union, etc of applicative predicates.
+                   pred0 == the empty predicate.
+                   predT == the total (always true) predicate.
+                            if T : predArgType, then T coerces to predT.
+                   {: T} == T cast to predArgType (e.g., {: bool * nat})
+ In the following, x and y are bound in E:
+           [rel x y | E] == simplifying relation x, y => E.
+       [rel x y : T | E] == simplifying relation with arguments cast.
+  [rel x y in A & B | E] == [rel x y | [&& x \in A, y \in B & E] ].
+      [rel x y in A & B] == [rel x y | (x \in A) && (y \in B) ].
+      [rel x y in A | E] == [rel x y in A & A | E].
+          [rel x y in A] == [rel x y in A & A].
+                relU R S == union of relations R and S.
+ Explicit values of type pred T (i.e., lamdba terms) should always be used
+ applicatively, while values of collection types implementing the predType
+ interface, such as sequences or sets should always be used as collective
+ predicates. Defined constants and functions of type pred T or simpl_pred T
+ as well as the explicit simpl_pred T values described below, can generally
+ be used either way. Note however that x \in A will not auto-simplify when
+ A is an explicit simpl_pred T value; the generic simplification rule inE
+ must be used (when A : pred T, the unfold_in rule can be used). Constants
+ of type pred T with an explicit simpl_pred value do not auto-simplify when
+ used applicatively, but can still be expanded with inE. This behavior can
+ be controlled as follows:
+   Let A : collective_pred T := [pred x | ... ].
+     The collective_pred T type is just an alias for pred T, but this cast
+     stops rewrite inE from expanding the definition of A, thus treating A
+     into an abstract collection (unfold_in or in_collective can be used to
+     expand manually).
+   Let A : applicative_pred T := [pred x | ... ].
+     This cast causes inE to turn x \in A into the applicative A x form;
+     A will then have to unfolded explicitly with the /A rule. This will
+     also apply to any definition that reduces to A (e.g., Let B := A).
+   Canonical A_app_pred := ApplicativePred A.
+     This declaration, given after definition of A, similarly causes inE to
+     turn x \in A into A x, but in addition allows the app_predE rule to
+     turn A x back into x \in A; it can be used for any definition of type
+     pred T, which makes it especially useful for ambivalent predicates
+     as the relational transitive closure connect, that are used in both
+     applicative and collective styles.
+ Purely for aesthetics, we provide a subtype of collective predicates:
+   qualifier q T == a pred T pretty-printing wrapper. An A : qualifier q T
+                    coerces to pred_class and thus behaves as a collective
+                    predicate, but x \in A and x \notin A are displayed as:
+             x \is A and x \isn't A when q = 0,
+         x \is a A and x \isn't a A when q = 1,
+       x \is an A and x \isn't an A when q = 2, respectively.
+   [qualify x | P] := Qualifier 0 (fun x => P), constructor for the above.
+ [qualify x : T | P], [qualify a x | P], [qualify an X | P], etc.
+                  variants of the above with type constraints and different
+                  values of q.
+ We provide an internal interface to support attaching properties (such as
+ being multiplicative) to predicates:
+    pred_key p == phantom type that will serve as a support for properties
+                  to be attached to p : pred_class; instances should be
+                  created with Fact/Qed so as to be opaque.
+ KeyedPred k_p == an instance of the interface structure that attaches
+                  (k_p : pred_key P) to P; the structure projection is a
+                  coercion to pred_class.
+ KeyedQualifier k_q == an instance of the interface structure that attaches
+                  (k_q : pred_key q) to (q : qualifier n T).
+ DefaultPredKey p == a default value for pred_key p; the vernacular command
+                  Import DefaultKeying attaches this key to all predicates
+                  that are not explicitly keyed.
+ Keys can be used to attach properties to predicates, qualifiers and
+ generic nouns in a way that allows them to be used transparently. The key
+ projection of a predicate property structure such as unsignedPred should
+ be a pred_key, not a pred, and corresponding lemmas will have the form
+    Lemma rpredN R S (oppS : @opprPred R S) (kS : keyed_pred oppS) :
+       {mono -%R: x / x \in kS}.
+ Because x \in kS will be displayed as x \in S (or x \is S, etc), the
+ canonical instance of opprPred will not normally be exposed (it will also
+ be erased by /= simplification). In addition each predicate structure
+ should have a DefaultPredKey Canonical instance that simply issues the
+ property as a proof obligation (which can be caught by the Prop-irrelevant
+ feature of the ssreflect plugin).
+   Some properties of predicates and relations:
+                  A =i B <-> A and B are extensionally equivalent.
+         {subset A <= B} <-> A is a (collective) subpredicate of B.
+             subpred P Q <-> P is an (applicative) subpredicate or Q.
+              subrel R S <-> R is a subrelation of S.
+ In the following R is in rel T:
+             reflexive R <-> R is reflexive.
+           irreflexive R <-> R is irreflexive.
+             symmetric R <-> R (in rel T) is symmetric (equation).
+         pre_symmetric R <-> R is symmetric (implication).
+         antisymmetric R <-> R is antisymmetric.
+                 total R <-> R is total.
+            transitive R <-> R is transitive.
+       left_transitive R <-> R is a congruence on its left hand side.
+      right_transitive R <-> R is a congruence on its right hand side.
+       equivalence_rel R <-> R is an equivalence relation.
+ Localization of (Prop) predicates; if P1 is convertible to forall x, Qx,
+ P2 to forall x y, Qxy and P3 to forall x y z, Qxyz :
+            {for y, P1} <-> Qx{y / x}.
+             {in A, P1} <-> forall x, x \in A -> Qx.
+       {in A1 & A2, P2} <-> forall x y, x \in A1 -> y \in A2 -> Qxy.
+           {in A &, P2} <-> forall x y, x \in A -> y \in A -> Qxy.
+  {in A1 & A2 & A3, Q3} <-> forall x y z,
+                            x \in A1 -> y \in A2 -> z \in A3 -> Qxyz.
+     {in A1 & A2 &, Q3} == {in A1 & A2 & A2, Q3}.
+      {in A1 && A3, Q3} == {in A1 & A1 & A3, Q3}.
+          {in A &&, Q3} == {in A & A & A, Q3}.
+    {in A, bijective f} == f has a right inverse in A.
+             {on C, P1} == forall x, (f x) \in C -> Qx
+                           when P1 is also convertible to Pf f.
+           {on C &, P2} == forall x y, f x \in C -> f y \in C -> Qxy
+                           when P2 is also convertible to Pf f.
+        {on C, P1' & g} == forall x, (f x) \in cd -> Qx
+                           when P1' is convertible to Pf f
+                           and P1' g is convertible to forall x, Qx.
+    {on C, bijective f} == f has a right inverse on C.
+ This file extends the lemma name suffix conventions of ssrfun as follows:
+   A -- associativity, as in andbA : associative andb.
+  AC -- right commutativity.
+ ACA -- self-interchange (inner commutativity), e.g.,
+        orbACA : (a || b) || (c || d) = (a || c) || (b || d).
+   b -- a boolean argument, as in andbb : idempotent andb.
+   C -- commutativity, as in andbC : commutative andb,
+        or predicate complement, as in predC.
+  CA -- left commutativity.
+   D -- predicate difference, as in predD.
+   E -- elimination, as in negbFE : ~~ b = false -> b.
+   F or f -- boolean false, as in andbF : b && false = false.
+   I -- left/right injectivity, as in addbI : right_injective addb,
+        or predicate intersection, as in predI.
+   l -- a left-hand operation, as andb_orl : left_distributive andb orb.
+   N or n -- boolean negation, as in andbN : a && (~~ a) = false.
+   P -- a characteristic property, often a reflection lemma, as in
+        andP : reflect (a /\ b) (a && b).
+   r -- a right-hand operation, as orb_andr : rightt_distributive orb andb.
+   T or t -- boolean truth, as in andbT: right_id true andb.
+   U -- predicate union, as in predU.
+   W -- weakening, as in in1W : {in D, forall x, P} -> forall x, P.          
+#+END_EXAMPLE
+
+*** Coq.ssr.ssreflect
+https://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.ssr.ssreflect.html
+#+BEGIN_EXAMPLE
+
+ This file is the Gallina part of the ssreflect plugin implementation.
+ Files that use the ssreflect plugin should always Require ssreflect and
+ either Import ssreflect or Import ssreflect.SsrSyntax.
+   Part of the contents of this file is technical and will only interest
+ advanced developers; in addition the following are defined:
+   [the str of v by f] == the Canonical s : str such that f s = v.
+        [the str of v] == the Canonical s : str that coerces to v.
+        argumentType c == the T such that c : forall x : T, P x.
+          returnType c == the R such that c : T -> R.
+     {type of c for s} == P s where c : forall x : T, P x.
+           phantom T v == singleton type with inhabitant Phantom T v.
+               phant T == singleton type with inhabitant Phant v.
+                 =^~ r == the converse of rewriting rule r (e.g., in a
+                          rewrite multirule).
+             unkeyed t == t, but treated as an unkeyed matching pattern by
+                          the ssreflect matching algorithm.
+             nosimpl t == t, but on the right-hand side of Definition C :=
+                          nosimpl disables expansion of C by /=.
+              locked t == t, but locked t is not convertible to t.
+       locked_with k t == t, but not convertible to t or locked_with k' t
+                          unless k = k' (with k : unit). Coq type-checking
+                          will be much more efficient if locked_with with a
+                          bespoke k is used for sealed definitions.
+          unlockable v == interface for sealed constant definitions of v.
+        Unlockable def == the unlockable that registers def : C = v.
+     [unlockable of C] == a clone for C of the canonical unlockable for the
+                          definition of C (e.g., if it uses locked_with).
+    [unlockable fun C] == [unlockable of C] with the expansion forced to be
+                          an explicit lambda expression.
+
+
+    > The usage pattern for ADT operations is:
+           Definition foo_def x1 .. xn := big_foo_expression.
+           Fact foo_key : unit. Proof. by [ ]. Qed.
+           Definition foo := locked_with foo_key foo_def.
+           Canonical foo_unlockable := [unlockable fun foo].
+         This minimizes the comparison overhead for foo, while still allowing
+         rewrite unlock to expose big_foo_expression.
+
+
+
+ More information about these definitions and their use can be found in the
+ ssreflect manual, and in specific comments below.                           
+#+END_EXAMPLE
+*** Coq.ssr.ssrfun
+https://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.ssr.ssrfun.html
+#+BEGIN_EXAMPLE
+
+ This file contains the basic definitions and notations for working with
+ functions. The definitions provide for:
+     Pair projections:
+        p.1  == first element of a pair
+        p.2  == second element of a pair
+       These notations also apply to p : P /\ Q, via an and >-> pair coercion.
+
+     Simplifying functions, beta-reduced by /= and simpl:
+               [fun : T => E] == constant function from type T that returns E
+                 [fun x => E] == unary function
+             [fun x : T => E] == unary function with explicit domain type
+               [fun x y => E] == binary function
+           [fun x y : T => E] == binary function with common domain type
+             [fun (x : T) y => E] \
+
+ [fun (x : xT) (y : yT) => E] | == binary function with (some) explicit,
+         [fun x (y : T) => E] / independent domain types for each argument
+
+     Partial functions using option type:
+         oapp f d ox == if ox is Some x returns f x,        d otherwise
+          odflt d ox == if ox is Some x returns x,          d otherwise
+          obind f ox == if ox is Some x returns f x,        None otherwise
+           omap f ox == if ox is Some x returns Some (f x), None otherwise
+
+     Singleton types:
+      all_equal_to x0 == x0 is the only value in its type, so any such value
+                         can be rewritten to x0.
+
+     A generic wrapper type:
+           wrapped T == the inductive type with values Wrap x for x : T.
+            unwrap w == the projection of w : wrapped T on T.
+              wrap x == the canonical injection of x : T into wrapped T; it is
+                        equivalent to Wrap x, but is declared as a (default)
+                        Canonical Structure, which lets the Coq HO unification
+                        automatically expand x into unwrap (wrap x). The delta
+                        reduction of wrap x to Wrap can be exploited to
+                        introduce controlled nondeterminism in Canonical
+                        Structure inference, as in the implementation of
+                        the mxdirect predicate in matrix.v.
+
+     Sigma types:
+               tag w == the i of w : {i : I & T i}.
+            tagged w == the T i component of w : {i : I & T i}.
+          Tagged T x == the {i : I & T i} with component x : T i.
+              tag2 w == the i of w : {i : I & T i & U i}.
+           tagged2 w == the T i component of w : {i : I & T i & U i}.
+          tagged2' w == the U i component of w : {i : I & T i & U i}.
+
+ Tagged2 T U x y == the {i : I & T i} with components x : T i and y : U i.
+          sval u == the x of u : {x : T | P x}.
+         s2val u == the x of u : {x : T | P x & Q x}.
+   The properties of sval u, s2val u are given by lemmas svalP, s2valP, and
+   s2valP'. We provide coercions sigT2 >-> sigT and sig2 >-> sig >-> sigT.
+   A suite of lemmas (all_sig, ...) let us skolemize sig, sig2, sigT, sigT2
+   and pair, e.g.,
+     have /all_sig[f fP] (x : T): {y : U | P y} by ...
+   yields an f : T -> U such that fP : forall x, P (f x).
+
+     Identity functions:
+        id           == NOTATION for the explicit identity function fun x => x.
+        @id T        == notation for the explicit identity at type T.
+        idfun        == an expression with a head constant, convertible to id;
+                        idfun x simplifies to x.
+        @idfun T     == the expression above, specialized to type T.
+        phant_id x y == the function type phantom _ x -> phantom _ y.
+
+ *** In addition to their casual use in functional programming, identity
+ functions are often used to trigger static unification as part of the
+ construction of dependent Records and Structures. For example, if we need
+ a structure sT over a type T, we take as arguments T, sT, and a "dummy"
+ function T -> sort sT:
+   Definition foo T sT & T -> sort sT := ...
+ We can avoid specifying sT directly by calling foo (@id T), or specify
+ the call completely while still ensuring the consistency of T and sT, by
+ calling @foo T sT idfun. The phant_id type allows us to extend this trick
+ to non-Type canonical projections. It also allows us to sidestep
+ dependent type constraints when building explicit records, e.g., given
+    Record r := R {x; y : T(x)}.
+ if we need to build an r from a given y0 while inferring some x0, such
+ that y0 : T(x0), we pose
+    Definition mk_r .. y .. (x := ...) y' & phant_id y y' := R x y'.
+ Calling @mk_r .. y0 .. id will cause Coq to use y' := y0, while checking
+ the dependent type constraint y0 : T(x0).
+
+     Extensional equality for functions and relations (i.e. functions of two
+       arguments):
+        f1 =1 f2      ==  f1 x is equal to f2 x for all x.
+        f1 =1 f2 :> A ==    ... and f2 is explicitly typed.
+        f1 =2 f2      ==  f1 x y is equal to f2 x y for all x y.
+        f1 =2 f2 :> A ==    ... and f2 is explicitly typed.
+
+     Composition for total and partial functions:
+                f^~ y == function f with second argument specialised to y,
+                         i.e., fun x => f x y
+                         CAVEAT: conditional (non-maximal) implicit arguments
+                         of f are NOT inserted in this context
+                @^~ x == application at x, i.e., fun f => f x
+              [eta f] == the explicit eta-expansion of f, i.e., fun x => f x
+                         CAVEAT: conditional (non-maximal) implicit arguments
+                         of f are NOT inserted in this context.
+              fun=> v := the constant function fun _ => v.
+            f1 \o f2  == composition of f1 and f2.
+                         Note: (f1 \o f2) x simplifies to f1 (f2 x).
+             f1 \; f2 == categorical composition of f1 and f2. This expands to
+                         to f2 \o f1 and (f1 \; f2) x simplifies to f2 (f1 x).
+          pcomp f1 f2 == composition of partial functions f1 and f2.
+
+     Properties of functions:
+          injective f <-> f is injective.
+           cancel f g <-> g is a left inverse of f / f is a right inverse of g.
+          pcancel f g <-> g is a left inverse of f where g is partial.
+          ocancel f g <-> g is a left inverse of f where f is partial.
+          bijective f <-> f is bijective (has a left and right inverse).
+         involutive f <-> f is involutive.
+
+     Properties for operations.
+                  left_id e op <-> e is a left identity for op (e op x = x).
+                 right_id e op <-> e is a right identity for op (x op e = x).
+         left_inverse e inv op <-> inv is a left inverse for op wrt identity e,
+                                   i.e., (inv x) op x = e.
+        right_inverse e inv op <-> inv is a right inverse for op wrt identity e
+                                   i.e., x op (i x) = e.
+             self_inverse e op <-> each x is its own op-inverse (x op x = e).
+                 idempotent op <-> op is idempotent for op (x op x = x).
+                  associative op <-> op is associative, i.e.,
+                                   x op (y op z) = (x op y) op z.
+                commutative op <-> op is commutative (x op y = y op x).
+           left_commutative op <-> op is left commutative, i.e.,
+                                       x op (y op z) = y op (x op z).
+          right_commutative op <-> op is right commutative, i.e.,
+                                       (x op y) op z = (x op z) op y.
+                left_zero z op <-> z is a left zero for op (z op x = z).
+               right_zero z op <-> z is a right zero for op (x op z = z).
+      left_distributive op1 op2 <-> op1 distributes over op2 to the left:
+                                 (x op2 y) op1 z = (x op1 z) op2 (y op1 z).
+
+ right_distributive op1 op2 <-> op distributes over add to the right:
+                             x op1 (y op2 z) = (x op1 z) op2 (x op1 z).
+        interchange op1 op2 <-> op1 and op2 satisfy an interchange law:
+                        (x op2 y) op1 (z op2 t) = (x op1 z) op2 (y op1 t).
+  Note that interchange op op is a commutativity property.
+         left_injective op <-> op is injective in its left argument:
+                             x op y = z op y -> x = z.
+        right_injective op <-> op is injective in its right argument:
+                             x op y = x op z -> y = z.
+          left_loop inv op <-> op, inv obey the inverse loop left axiom:
+                              (inv x) op (x op y) = y for all x, y, i.e.,
+                              op (inv x) is always a left inverse of op x
+      rev_left_loop inv op <-> op, inv obey the inverse loop reverse left
+                              axiom: x op ((inv x) op y) = y, for all x, y.
+         right_loop inv op <-> op, inv obey the inverse loop right axiom:
+                              (x op y) op (inv y) = x for all x, y.
+     rev_right_loop inv op <-> op, inv obey the inverse loop reverse right
+                              axiom: (x op y) op (inv y) = x for all x, y.
+   Note that familiar "cancellation" identities like x + y - y = x or
+ x - y + y = x are respectively instances of right_loop and rev_right_loop
+ The corresponding lemmas will use the K and NK/VK suffixes, respectively.
+
+     Morphisms for functions and relations:
+        {morph f : x / a >-> r} <-> f is a morphism with respect to functions
+                                   (fun x => a) and (fun x => r); if r == R[x],
+                                   this states that f a = R[f x] for all x.
+              {morph f : x / a} <-> f is a morphism with respect to the
+                                   function expression (fun x => a). This is
+                                   shorthand for {morph f : x / a >-> a}; note
+                                   that the two instances of a are often
+                                   interpreted at different types.
+      {morph f : x y / a >-> r} <-> f is a morphism with respect to functions
+                                   (fun x y => a) and (fun x y => r).
+            {morph f : x y / a} <-> f is a morphism with respect to the
+                                   function expression (fun x y => a).
+         {homo f : x / a >-> r} <-> f is a homomorphism with respect to the
+                                   predicates (fun x => a) and (fun x => r);
+                                   if r == R[x], this states that a -> R[f x]
+                                   for all x.
+               {homo f : x / a} <-> f is a homomorphism with respect to the
+                                   predicate expression (fun x => a).
+       {homo f : x y / a >-> r} <-> f is a homomorphism with respect to the
+                                   relations (fun x y => a) and (fun x y => r).
+             {homo f : x y / a} <-> f is a homomorphism with respect to the
+                                   relation expression (fun x y => a).
+         {mono f : x / a >-> r} <-> f is monotone with respect to projectors
+                                   (fun x => a) and (fun x => r); if r == R[x],
+                                   this states that R[f x] = a for all x.
+               {mono f : x / a} <-> f is monotone with respect to the projector
+                                   expression (fun x => a).
+       {mono f : x y / a >-> r} <-> f is monotone with respect to relators
+                                   (fun x y => a) and (fun x y => r).
+             {mono f : x y / a} <-> f is monotone with respect to the relator
+                                   expression (fun x y => a).
+
+ The file also contains some basic lemmas for the above concepts.
+ Lemmas relative to cancellation laws use some abbreviated suffixes:
+   K - a cancellation rule like esymK : cancel (@esym T x y) (@esym T y x).
+  LR - a lemma moving an operation from the left hand side of a relation to
+       the right hand side, like canLR: cancel g f -> x = g y -> f x = y.
+  RL - a lemma moving an operation from the right to the left, e.g., canRL.
+ Beware that the LR and RL orientations refer to an "apply" (back chaining)
+ usage; when using the same lemmas with "have" or "move" (forward chaining)
+ the directions will be reversed!.                                           
+#+END_EXAMPLE
+
+*** Coq.ssrmatching.ssrmatching
+https://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.ssrmatching.ssrmatching.html
+#+BEGIN_EXAMPLE
+Module SsrMatchingSyntax.
+
+Reserved Notation "( a 'in' b )" (at level 0).
+Reserved Notation "( a 'as' b )" (at level 0).
+Reserved Notation "( a 'in' b 'in' c )" (at level 0).
+Reserved Notation "( a 'as' b 'in' c )" (at level 0).
+
+Notation "( X 'in' t )" := (_ : fun X => t) : ssrpatternscope.
+Delimit Scope ssrpatternscope with pattern.
+
+Notation RHS := (X in _ = X)%pattern.
+Notation LHS := (X in X = _)%pattern.
+
+End SsrMatchingSyntax.
+
+Export SsrMatchingSyntax.
+
+Tactic Notation "ssrpattern" ssrpatternarg(p) := ssrpattern p .
+#+END_EXAMPLE
+
+* math-comp
+This section documents modules that are part of the Mathematical
+Components library.
+** mathcomp.ssreflect
+*** mathcomp.ssreflect.ssreflect
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.ssreflect.html
+
+#+BEGIN_EXAMPLE
+ Local additions:                                                           
+   nonPropType == an interface for non-Prop Types: a nonPropType coerces    
+                  to a Type, and only types that do not have sort         
+                  Prop are canonical nonPropType instances. This is         
+                  useful for applied views.                                 
+> This will become standard with the Coq v8.11 SSReflect core library. 
+
+  deprecate old new == new, but warning that old is deprecated and new      
+                       should be used instead.                              
+
+> Usage: Notation old := (deprecate old new) (only parsing).          
+> Caveat: deprecate old new only inherits new's maximal implicits;    
+        on-demand implicits should be added after : (deprecate old new _).  
+
+> Caveat 2: if premises or conclusions need to be adjusted, of for    
+        non-prenex implicits, use the idiom:                                
+         Notation old := ((fun a1 a2 ... => deprecate old new a1 a2 ...)    
+                          _  ... _) (only printing).                       
+        where all the implicit a_i's occur first, and correspond to the     
+        trailing 's, making sure deprecate old new is fully applied and    
+        there are no implicits inside the (fun .. => ..) expression. This 
+        is to avoid triggering a bug in SSReflect elaboration that is       
+        triggered by such evars under binders.                              
+
+  Import Deprecation.Silent :: turn off deprecation warning messages.       
+
+  Import Deprecation.Reject :: raise an error instead of only warning.       
+#+END_EXAMPLE
+
+*** mathcomp.ssreflect.ssrmatching
+No coqdoc.
+*** mathcomp.ssreflect.ssrnotations
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.ssrnotations.html
+#+BEGIN_EXAMPLE
+ Reserved notation for various arithmetic and algebraic operations:       
+     e. [a1, ..., a_n] evaluation (e.g., polynomials).                       
+                 e`i indexing (number list, integer pi-part).              
+                 x^-1 inverse (group, field).                               
+       x *+ n, x *- n integer multiplier (modules and rings).               
+       x ^+ n, x ^- n integer exponent (groups and rings).                  
+       x *: A, A :* x external product (scaling/module product in rings,    
+                      left/right cosets in groups).                         
+             A :&: B  intersection (of sets, groups, subspaces, ...).       
+     A :|: B, a |: B  union, union with a singleton (of sets).              
+     A :\: B, A :\ b  relative complement (of sets, subspaces, ...).        
+        A, < [a]>  generated group/subspace, generated cycle/line.       
+       'C[x], 'C_A[x] point centralisers (in groups and F-algebras).        
+       'C(A), 'C_B(A) centralisers (in groups and matrix and F_algebras).   
+                'Z(A) centers (in groups and matrix and F-algebras).        
+       m %/ d, m %% d Euclidean division and remainder (nat, polynomials).  
+               d %| m Euclidean divisibility (nat, polynomial).             
+       m = n % [mod d] equality mod d (also defined for <>, ==, and !=).     
+               e^`(n) nth formal derivative (groups, polynomials).          
+                e^` simple formal derivative (polynomials only).          
+                 `|x| norm, absolute value, distance (rings, int, nat).     
+      x <= y ?= iff C x is less than y, and equal iff C holds (nat, rings). 
+     x <= y :> T, etc cast comparison (rings, all comparison operators).    
+    [rec a1, ..., an] standard shorthand for hidden recursor (see prime.v). 
+   The interpretation of these notations is not defined here, but the       
+   declarations help maintain consistency across the library.                
+  Reserved notation for evaluation  
+#+END_EXAMPLE
+
+*** mathcomp.ssreflect.ssrfun
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.ssrfun.html
+#+BEGIN_EXAMPLE
+Lemma Some_inj {T : nonPropType} : injective (@Some T).
+#+END_EXAMPLE
+*** mathcomp.ssreflect.ssrbool
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.ssrbool.html
+#+BEGIN_EXAMPLE
+Local additions:                                                           
+      {pred T} == a type convertible to pred T but that presents the        
+                  pred_sort coercion class.                                 
+  PredType toP == the predType structure for toP : A -> pred T.             
+    relpre f r == the preimage of r by f, simplifying to r (f x) (f y).     
+> These will become part of the core SSReflect library with Coq 8.11.    
+ This file also anticipates a v8.11 change in the definition of simpl_pred  
+ to T -> simpl_pred T. This change ensures that inE expands the definition  
+ of r : simpl_rel along with the \in, when rewriting in y \in r x.           
+#+END_EXAMPLE
+*** mathcomp.ssreflect.eqtype
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.eqtype.html
+#+BEGIN_EXAMPLE
+ This file defines two "base" combinatorial interfaces:                     
+    eqType == the structure for types with a decidable equality.            
+ subType P == the structure for types isomorphic to {x : T | P x} with      
+              P : pred T for some type T.                                   
+ The following are used to construct eqType instances:                      
+         EqType T m == the packed eqType class for type T and mixin m.      
+> As eqType is a root class, equality mixins and classes coincide.       
+   Equality.axiom e <-> e : rel T is a valid comparison decision procedure  
+                       for type T: reflect (x = y) (e x y) for all x y : T. 
+         EqMixin eP == the equality mixin for eP : Equality.axiom e.        
+> Such manifest equality mixins should be declared Canonical to allow    
+ for generic folding of equality predicates (see lemma eqE below).          
+  [eqType of T for eT] == clone for T of eT, where eT is an eqType for a    
+                      type convertible, but usually not identical, to T.    
+      [eqType of T] == clone for T of the eqType inferred for T, possibly   
+                       after unfolding some definitions.                    
+     [eqMixin of T] == mixin of the eqType inferred for T.                  
+       comparable T <-> equality on T is decidable.                         
+                    := forall x y : T, decidable (x = y)                    
+  comparableMixin compT == equality mixin for compT : comparable T.         
+   InjEqMixin injf == an Equality mixin for T, using an f : T -> U  where   
+                      U has an eqType structure and injf : injective f.     
+    PcanEqMixin fK == an Equality mixin similarly derived from f and a left 
+                      inverse partial function g and fK : pcancel f g.      
+     CanEqMixin fK == an Equality mixin similarly derived from f and a left 
+                      inverse function g and fK : cancel f g.               
+> Equality mixins derived by the above should never be made Canonical as 
+ they provide only comparisons with a generic head constant.                
+   The eqType interface supports the following operations:                  
+              x == y <=> x compares equal to y (this is a boolean test).    
+         x == y :> T <=> x == y at type T.                                  
+              x != y <=> x and y compare unequal.                           
+         x != y :> T <=> x and y compare unequal at type T.                 
+             x =P y  :: a proof of reflect (x = y) (x == y); x =P y coerces 
+                     to x == y -> x = y.                                    
+               eq_op == the boolean relation behing the == notation.        
+             pred1 a == the singleton predicate [pred x | x == a].          
+ pred2, pred3, pred4 == pair, triple, quad predicates.                      
+            predC1 a == [pred x | x != a].                                  
+      [predU1 a & A] == [pred x | (x == a) || (x \in A) ].                   
+      [predD1 A & a] == [pred x | x != a & x \in A].                        
+  predU1 a P, predD1 P a == applicative versions of the above.              
+              frel f == the relation associated with f : T -> T.            
+                     := [rel x y | f x == y].                               
+       invariant k f == elements of T whose k-class is f-invariant.         
+                     := [pred x | k (f x) == k x] with f : T -> T.          
+  [fun x : T => e0 with a1 |-> e1, .., a_n |-> e_n]                         
+  [eta f with a1 |-> e1, .., a_n |-> e_n] ==                                
+    the auto-expanding function that maps x = a_i to e_i, and other values  
+    of x to e0 (resp. f x). In the first form the `: T' is optional and x   
+    can occur in a_i or e_i.                                                
+ Equality on an eqType is proof-irrelevant (lemma eq_irrelevance).          
+   The eqType interface is implemented for most standard datatypes:         
+  bool, unit, void, option, prod (denoted A * B), sum (denoted A + B),      
+  sig (denoted {x | P}), sigT (denoted {i : I & T}). We also define         
+   tagged_as u v == v cast as T(tag u) if tag v == tag u, else u.          
+
+
+    > We have u == v <=> (tag u == tag v) && (tagged u == tagged_as u v).    
+
+
+
+ The subType interface supports the following operations:                   
+      val == the generic injection from a subType S of T into T.            
+             For example, if u : {x : T | P}, then val u : T.               
+             val is injective because P is proof-irrelevant (P is in bool,  
+             and the is_true coercion expands to P = true).                 
+     valP == the generic proof of P (val u) for u : subType P.              
+ Sub x Px == the generic constructor for a subType P; Px is a proof of P x  
+             and P should be inferred from the expected return type.        
+  insub x == the generic partial projection of T into a subType S of T.     
+             This returns an option S; if S : subType P then                
+                insub x = Some u with val u = x if P x,                     
+                          None if ~~ P x                                    
+             The insubP lemma encapsulates this dichotomy.                  
+             P should be infered from the expected return type.             
+  innew x == total (non-option) variant of insub when P = predT.            
+ {? x | P} == option {x | P} (syntax for casting insub x).                  
+ insubd u0 x == the generic projection with default value u0.               
+             := odflt u0 (insub x).                                         
+ insigd A0 x == special case of insubd for S == {x | x \in A}, where A0 is  
+                a proof of x0 \in A.                                        
+ insub_eq x == transparent version of insub x that expands to Some/None     
+               when P x can evaluate.                                       
+ The subType P interface is most often implemented using one of:            
+   [subType for S_val]                                                      
+     where S_val : S -> T is the first projection of a type S isomorphic to 
+     {x : T | P}.                                                           
+   [newType for S_val]                                                      
+     where S_val : S -> T is the projection of a type S isomorphic to       
+     wrapped T; in this case P must be predT.                               
+   [subType for S_val by Srect], [newType for S_val by Srect]               
+     variants of the above where the eliminator is explicitly provided.     
+     Here S no longer needs to be syntactically identical to {x | P x} or   
+     wrapped T, but it must have a derived constructor S_Sub statisfying an 
+     eliminator Srect identical to the one the Coq Inductive command would  
+     have generated, and S_val (S_Sub x Px) (resp. S_val (S_sub x) for the  
+     newType form) must be convertible to x.                                
+     variant of the above when S is a wrapper type for T (so P = predT).    
+   [subType of S], [subType of S for S_val]                                 
+     clones the canonical subType structure for S; if S_val is specified,   
+     then it replaces the inferred projector.                               
+ Subtypes inherit the eqType structure of their base types; the generic     
+ structure should be explicitly instantiated using the                      
+   [eqMixin of S by <: ]                                                     
+ construct to declare the equality mixin; this pattern is repeated for all  
+ the combinatorial interfaces (Choice, Countable, Finite). As noted above,  
+ such mixins should not be made Canonical.                                  
+   We add the following to the standard suffixes documented in ssrbool.v:   
+  1, 2, 3, 4 -- explicit enumeration predicate for 1 (singleton), 2, 3, or  
+                4 values.                                                    
+
+eqE is a generic lemma that can be used to fold back recursive comparisons 
+ after using partial evaluation to simplify comparisons on concrete         
+ instances. The eqE lemma can be used e.g. like so: rewrite !eqE /= -!eqE.  
+ For instance, with the above rewrite, n.+1 == n.+1 gets simplified to      
+ n == n. For this to work, we need to declare equality mixins             
+ as canonical. Canonical declarations remove the need for specific          
+ inverses to eqE (like eqbE, eqnE, eqseqE, etc.) for new recursive          
+ comparisons, but can only be used for manifest mixing with a bespoke       
+ comparison function, and so is incompatible with PcanEqMixin and the like  
+
+
+this is why the tree_eqMixin for GenTree.tree in library choice is not   
+declared Canonical.                                                         
+
+#+END_EXAMPLE
+*** mathcomp.ssreflect.ssrnat
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.ssrnat.html
+#+BEGIN_EXAMPLE
+
+ A version of arithmetic on nat (natural numbers) that is better suited to  
+ small scale reflection than the Coq Arith library. It contains an          
+ extensive equational theory (including, e.g., the AGM inequality), as well 
+ as support for the ring tactic, and congruence tactics.                    
+   The following operations and notations are provided:                     
+ 
+   successor and predecessor                                                
+     n.+1, n.+2, n.+3, n.+4 and n.-1, n.-2                                  
+     this frees the names "S" and "pred"                                    
+
+   basic arithmetic                                                         
+     m + n, m - n, m * n                                                    
+   Important: m - n denotes TRUNCATED subtraction: m - n = 0 if m <= n.     
+   The definitions use the nosimpl tag to prevent undesirable computation   
+   computation during simplification, but remain compatible with the ones   
+   provided in the Coq.Init.Peano prelude.                                  
+     For computation, a module NatTrec rebinds all arithmetic notations     
+   to less convenient but also less inefficient tail-recursive functions;   
+   the auxiliary functions used by these versions are flagged with %Nrec.   
+     Also, there is support for input and output of large nat values.       
+       Num 3 082 241 inputs the number 3082241                              
+         [Num of n]  outputs the value n                                    
+   There are coercions num >-> BinNat.N >-> nat; ssrnat rebinds the scope   
+   delimiter for BinNat.N to %num, as it uses the shorter %N for its own    
+   notations (Peano notations are flagged with %coq_nat).                   
+
+   doubling, halving, and parity                                            
+      n.*2, n./2, odd n, uphalf n,  with uphalf n = n.+1./2                 
+   bool coerces to nat so we can write, e.g., n = odd n + n./2.*2.          
+
+   iteration                                                                
+             iter n f x0  == f ( .. (f x0))                                 
+             iteri n g x0 == g n.-1 (g ... (g 0 x0))                        
+         iterop n op x x0 == op x (... op x x) (n x's) or x0 if n = 0       
+ 
+   exponentiation, factorial                                                
+        m ^ n, n`!                                                          
+        m ^ 1 is convertible to m, and m ^ 2 to m * m                       
+
+   comparison                                                               
+      m <= n, m < n, m >= n, m > n, m == n, m <= n <= p, etc.,              
+   comparisons are BOOLEAN operators, and m == n is the generic eqType      
+   operation.                                                               
+     Most compatibility lemmas are stated as boolean equalities; this keeps 
+   the size of the library down. All the inequalities refer to the same     
+   constant "leq"; in particular m < n is identical to m.+1 <= n.           
+
+   conditionally strict inequality `leqif'                                  
+      m <= n ?= iff condition   ==   (m <= n) and ((m == n) = condition)    
+   This is actually a pair of boolean equalities, so rewriting with an      
+   `leqif' lemma can affect several kinds of comparison. The transitivity   
+   lemma for leqif aggregates the conditions, allowing for arguments of     
+   the form ``m <= n <= p <= m, so equality holds throughout''.             
+
+   maximum and minimum                                                      
+      maxn m n, minn m n                                                    
+   Note that maxn m n = m + (m - n), due to the truncating subtraction.     
+   Absolute difference (linear distance) between nats is defined in the int 
+   library (in the int.IntDist sublibrary), with the syntax `|m - n|. The   
+   '-' in this notation is the signed integer difference.                   
+ 
+   countable choice                                                         
+     ex_minn : forall P : pred nat, (exists n, P n) -> nat                  
+   This returns the smallest n such that P n holds.                         
+     ex_maxn : forall (P : pred nat) m,                                     
+        (exists n, P n) -> (forall n, P n -> n <= m) -> nat                 
+   This returns the largest n such that P n holds (given an explicit upper  
+   bound).                                                                  
+
+  This file adds the following suffix conventions to those documented in    
+ ssrbool.v and eqtype.v:                                                    
+   A (infix) -- conjunction, as in                                          
+      ltn_neqAle : (m < n) = (m != n) && (m <= n).                          
+   B -- subtraction, as in subBn : (m - n) - p = m - (n + p).               
+   D -- addition, as in mulnDl : (m + n) * p = m * p + n * p.               
+   M -- multiplication, as in expnMn : (m * n) ^ p = m ^ p * n ^ p.         
+   p (prefix) -- positive, as in                                            
+      eqn_pmul2l : m > 0 -> (m * n1 == m * n2) = (n1 == n2).                
+   P  -- greater than 1, as in                                              
+      ltn_Pmull : 1 < n -> 0 < m -> m < n * m.                              
+   S -- successor, as in addSn : n.+1 + m = (n + m).+1.                     
+   V (infix) -- disjunction, as in                                          
+      leq_eqVlt : (m <= n) = (m == n) || (m < n).                           
+   X - exponentiation, as in lognX : logn p (m ^ n) = logn p m * n in       
+         file prime.v (the suffix is not used in ths file).                 
+ Suffixes that abbreviate operations (D, B, M and X) are used to abbreviate 
+ second-rank operations in equational lemma names that describe left-hand   
+ sides (e.g., mulnDl); they are not used to abbreviate the main operation   
+ of relational lemmas (e.g., leq_add2l).                                    
+   For the asymmetrical exponentiation operator expn (m ^ n) a right suffix 
+ indicates an operation on the exponent, e.g., expnM : m ^ (n1 * n2) = ...; 
+ a trailing "n" is used to indicate the left operand, e.g.,                 
+ expnMn : (m1 * m2) ^ n = ... The operands of other operators are selected  
+ using the l/r suffixes.                                                     
+
+#+END_EXAMPLE
+*** mathcomp.ssreflect.seq
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.seq.html
+#+BEGIN_EXAMPLE
+
+ The seq type is the ssreflect type for sequences; it is an alias for the   
+ standard Coq list type. The ssreflect library equips it with many          
+ operations, as well as eqType and predType (and, later, choiceType)        
+ structures. The operations are geared towards reflection: they generally   
+ expect and provide boolean predicates, e.g., the membership predicate      
+ expects an eqType. To avoid any confusion we do not Import the Coq List    
+ module.                                                                    
+   As there is no true subtyping in Coq, we don't use a type for non-empty  
+ sequences; rather, we pass explicitly the head and tail of the sequence.   
+   The empty sequence is especially bothersome for subscripting, since it   
+ forces us to pass a default value. This default value can often be hidden  
+ by a notation.                                                             
+   Here is the list of seq operations:                                      
+Constructors:
+
+
+                        seq T == the type of sequences of items of type T.  
+                       bitseq == seq bool.                                  
+             [:: ], nil, Nil T == the empty sequence (of type T).            
+ x :: s, cons x s, Cons T x s == the sequence x followed by s (of type T).  
+                       [:: x] == the singleton sequence.                    
+           [:: x_0; ...; x_n] == the explicit sequence of the x_i.          
+       [:: x_0, ..., x_n & s] == the sequence of the x_i, followed by s.    
+                    rcons s x == the sequence s, followed by x.             
+  All of the above, except rcons, can be used in patterns. We define a view 
+ lastP and an induction principle last_ind that can be used to decompose    
+ or traverse a sequence in a right to left order. The view lemma lastP has  
+ a dependent family type, so the ssreflect tactic case/lastP: p => [|p' x]  
+ will generate two subgoals in which p has been replaced by [:: ] and by     
+ rcons p' x, respectively.                                                  
+Factories:
+
+
+             nseq n x == a sequence of n x's.                               
+          ncons n x s == a sequence of n x's, followed by s.                
+ seqn n x_0 ... x_n-1 == the sequence of the x_i; can be partially applied. 
+             iota m n == the sequence m, m + 1, ..., m + n - 1.             
+            mkseq f n == the sequence f 0, f 1, ..., f (n - 1).             
+Sequential access:
+
+
+      head x0 s == the head (zero'th item) of s if s is non-empty, else x0. 
+        ohead s == None if s is empty, else Some x when the head of s is x. 
+       behead s == s minus its head, i.e., s' if s = x :: s', else [:: ].    
+       last x s == the last element of x :: s (which is non-empty).         
+     belast x s == x :: s minus its last item.                              
+Dimensions:
+
+
+         size s == the number of items (length) in s.                       
+       shape ss == the sequence of sizes of the items of the sequence of    
+                   sequences ss.                                            
+Random access:
+
+
+         nth x0 s i == the item i of s (numbered from 0), or x0 if s does   
+                       not have at least i+1 items (i.e., size x <= i)      
+               s`i == standard notation for nth x0 s i for a default x0,   
+                       e.g., 0 for rings.                                   
+   set_nth x0 s i y == s where item i has been changed to y; if s does not  
+                       have an item i, it is first padded with copies of x0 
+                       to size i+1.                                         
+       incr_nth s i == the nat sequence s with item i incremented (s is     
+                       first padded with 0's to size i+1, if needed).       
+Predicates:
+
+
+          nilp s <=> s is [:: ].                                             
+                 := (size s == 0).                                          
+         x \in s == x appears in s (this requires an eqType for T).         
+       index x s == the first index at which x appears in s, or size s if   
+                    x \notin s.                                             
+         has a s <=> a holds for some item in s, where a is an applicative  
+                     bool predicate.                                        
+         all a s <=> a holds for all items in s.                            
+         'has_aP <-> the view reflect (exists2 x, x \in s & A x) (has a s), 
+                     where aP x : reflect (A x) (a x).                      
+         'all_aP <=> the view for reflect {in s, forall x, A x} (all a s).  
+      all2 r s t <=> the (bool) relation r holds for all respective items 
+                    in s and t, which must also have the same size, i.e.,   
+                    for s := [:: x1; ...; x_m] and t := [:: y1; ...; y_n],  
+                    the condition [&& r x_1 y_1, ..., r x_n y_n & m == n].  
+        find p s == the index of the first item in s for which p holds,     
+                    or size s if no such item is found.                     
+       count p s == the number of items of s for which p holds.             
+   count_mem x s == the multiplicity of x in s, i.e., count (pred1 x) s.    
+         tally s == a tally of s, i.e., a sequence of (item, multiplicity)  
+                    pairs for all items in sequence s (without duplicates). 
+ incr_tally bs x == increment the multiplicity of x in the tally bs, or add 
+                    x with multiplicity 1 at then end if x is not in bs.    
+ bs \is a wf_tally <=> bs is well-formed tally, with no duplicate items or  
+                    null multiplicities.                                    
+    tally_seq bs == the expansion of a tally bs into a sequence where each  
+                    (x, n) pair expands into a sequence of n x's.           
+      constant s <=> all items in s are identical (trivial if s = [:: ]).    
+          uniq s <=> all the items in s are pairwise different.             
+    subseq s1 s2 <=> s1 is a subsequence of s2, i.e., s1 = mask m s2 for    
+                    some m : bitseq (see below).                            
+   perm_eq s1 s2 <=> s2 is a permutation of s1, i.e., s1 and s2 have the    
+                    items (with the same repetitions), but possibly in a    
+                    different order.                                        
+  perm_eql s1 s2 <-> s1 and s2 behave identically on the left of perm_eq.   
+  perm_eqr s1 s2 <-> s1 and s2 behave identically on the right of perm_eq.  
+> These left/right transitive versions of perm_eq make it easier to      
+  chain a sequence of equivalences.                                         
+   permutations s == a duplicate-free list of all permutations of s.        
+Filtering:
+
+
+           filter p s == the subsequence of s consisting of all the items   
+                         for which the (boolean) predicate p holds.         
+              rem x s == the subsequence of s, where the first occurrence   
+                         of x has been removed (compare filter (predC1 x) s 
+                         where ALL occurrences of x are removed).           
+              undup s == the subsequence of s containing only the first     
+                         occurrence of each item in s, i.e., s with all     
+                         duplicates removed.                                
+             mask m s == the subsequence of s selected by m : bitseq, with  
+                         item i of s selected by bit i in m (extra items or 
+                         bits are ignored.                                  
+Surgery:
+
+
+ s1 ++ s2, cat s1 s2 == the concatenation of s1 and s2.                     
+            take n s == the sequence containing only the first n items of s 
+                        (or all of s if size s <= n).                       
+            drop n s == s minus its first n items ( [:: ] if size s <= n)     
+             rot n s == s rotated left n times (or s if size s <= n).       
+                     := drop n s ++ take n s                                
+            rotr n s == s rotated right n times (or s if size s <= n).      
+               rev s == the (linear time) reversal of s.                    
+        catrev s1 s2 == the reversal of s1 followed by s2 (this is the      
+                        recursive form of rev).                             
+Dependent iterator: for s : seq S and t : S -> seq T
+
+
+ [seq E | x <- s, y <- t] := flatten [seq [seq E | x <- t] | y <- s]        
+                == the sequence of all the f x y, with x and y drawn from   
+                   s and t, respectively, in row-major order,               
+                   and where t is possibly dependent in elements of s       
+ allpairs_dep f s t := self expanding definition for                        
+                       [seq f x y | x <- s, y <- t i]                       
+Iterators: for s == [:: x_1, ..., x_n], t == [:: y_1, ..., y_m],
+
+
+ allpairs f s t := same as allpairs_dep but where t is non dependent,       
+                    i.e. self expanding definition for                      
+                      [seq f x y | x <- s, y <- t]                          
+               := [:: f x_1 y_1; ...; f x_1 y_m; f x_2 y_1; ...; f x_n y_m] 
+        map f s == the sequence [:: f x_1, ..., f x_n].                     
+      pmap pf s == the sequence [:: y_i1, ..., y_ik] where i1 < ... < ik,   
+                   pf x_i = Some y_i, and pf x_j = None iff j is not in     
+                   {i1, ..., ik}.                                           
+   foldr f a s == the right fold of s by f (i.e., the natural iterator).    
+               := f x_1 (f x_2 ... (f x_n a))                               
+        sumn s == x_1 + (x_2 + ... + (x_n + 0)) (when s : seq nat).         
+   foldl f a s == the left fold of s by f.                                  
+               := f (f ... (f a x_1) ... x_n-1) x_n                         
+   scanl f a s == the sequence of partial accumulators of foldl f a s.      
+               := [:: f a x_1; ...; foldl f a s]                            
+ pairmap f a s == the sequence of f applied to consecutive items in a :: s. 
+               := [:: f a x_1; f x_1 x_2; ...; f x_n-1 x_n]                 
+       zip s t == itemwise pairing of s and t (dropping any extra items).   
+               := [:: (x_1, y_1); ...; (x_mn, y_mn) ] with mn = minn n m.    
+      unzip1 s == [:: (x_1).1; ...; (x_n).1] when s : seq (S * T).          
+      unzip2 s == [:: (x_1).2; ...; (x_n).2] when s : seq (S * T).          
+     flatten s == x_1 ++ ... ++ x_n ++ [:: ] when s : seq (seq T).           
+   reshape r s == s reshaped into a sequence of sequences whose sizes are   
+                  given by r (truncating if s is too long or too short).    
+               := [:: [:: x_1; ...; x_r1];                                  
+                      [:: x(r1 + 1); ...; x(r0 + r1) ];                    
+                      ...;                                                  
+                      [:: x(r1 + ... + r(k-1) + 1); ...; x(r0 + ... rk) ]#] 
+ flatten_index sh r c == the index, in flatten ss, of the item of indexes   
+                  (r, c) in any sequence of sequences ss of shape sh        
+               := sh_1 + sh_2 + ... + sh_r + c                              
+ reshape_index sh i == the index, in reshape sh s, of the sequence          
+                  containing the i-th item of s.                            
+ reshape_offset sh i == the offset, in the (reshape_index sh i)-th          
+                  sequence of reshape sh s of the i-th item of s            
+Notation for manifest comprehensions:
+
+
+         [seq x <- s | C] := filter (fun x => C) s.                         
+         [seq E | x <- s] := map (fun x => E) s.                            
+   [seq x <- s | C1 & C2] := [seq x <- s | C1 && C2].                       
+     [seq E | x <- s & C] := [seq E | x <- [seq x | C] ].                    
+> The above allow optional type casts on the eigenvariables, as in      
+  [seq x : T <- s | C] or [seq E | x : T <- s, y : U <- t]. The cast may be 
+  needed as type inference considers E or C before s.                       
+   We are quite systematic in providing lemmas to rewrite any composition   
+ of two operations. "rev", whose simplifications are not natural, is        
+ protected with nosimpl.                                                    
+The following are equivalent:
+
+
+  [<-> P0; P1; ..; Pn] <-> P0, P1, ..., Pn are all equivalent.              
+                       := P0 -> P1 -> ... -> Pn -> P0                       
+  if T : [<-> P0; P1; ..; Pn]  is such an equivalence, and i, j are in nat  
+  then T i j is a proof of the equivalence Pi <-> Pj between Pi and Pj;     
+  when i (resp. j) is out of bounds, Pi (resp. Pj) defaults to P0.           
+#+END_EXAMPLE
+*** mathcomp.ssreflect.choice
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.choice.html
+#+BEGIN_EXAMPLE
+This file contains the definitions of:                                     
+   choiceType == interface for types with a choice operator.                
+    countType == interface for countable types (implies choiceType).        
+ subCountType == interface for types that are both subType and countType.   
+  xchoose exP == a standard x such that P x, given exP : exists x : T, P x  
+                 when T is a choiceType. The choice depends only on the     
+                 extent of P (in particular, it is independent of exP).     
+   choose P x0 == if P x0, a standard x such that P x.                      
+      pickle x == a nat encoding the value x : T, where T is a countType.   
+    unpickle n == a partial inverse to pickle: unpickle (pickle x) = Some x 
+  pickle_inv n == a sharp partial inverse to pickle pickle_inv n = Some x   
+                  if and only if pickle x = n.                              
+            choiceMixin T == type of choice mixins; the exact contents is   
+                        documented below in the Choice submodule.           
+           ChoiceType T m == the packed choiceType class for T and mixin m. 
+ [choiceType of T for cT] == clone for T of the choiceType cT.              
+        [choiceType of T] == clone for T of the choiceType inferred for T.  
+            CountType T m == the packed countType class for T and mixin m.  
+  [countType of T for cT] == clone for T of the countType cT.               
+        [count Type of T] == clone for T of the countType inferred for T.   
+ [choiceMixin of T by <: ] == Choice mixin for T when T has a subType p      
+                        structure with p : pred cT and cT has a Choice      
+                        structure; the corresponding structure is Canonical.
+  [countMixin of T by <: ] == Count mixin for a subType T of a countType.    
+  PcanChoiceMixin fK == Choice mixin for T, given f : T -> cT where cT has  
+                        a Choice structure, a left inverse partial function 
+                        g and fK : pcancel f g.                             
+   CanChoiceMixin fK == Choice mixin for T, given f : T -> cT, g and        
+                        fK : cancel f g.                                    
+   PcanCountMixin fK == Count mixin for T, given f : T -> cT where cT has   
+                        a Countable structure, a left inverse partial       
+                        function g and fK : pcancel f g.                    
+    CanCountMixin fK == Count mixin for T, given f : T -> cT, g and         
+                        fK : cancel f g.                                    
+      GenTree.tree T == generic n-ary tree type with nat-labeled nodes and  
+                        T-labeled leaves, for example GenTree.Leaf (x : T), 
+                        GenTree.Node 5 [:: t; t' ]. GenTree.tree is equipped 
+                        with canonical eqType, choiceType, and countType    
+                        instances, and so simple datatypes can be similarly 
+                        equipped by encoding into GenTree.tree and using    
+                        the mixins above.                                   
+        CodeSeq.code == bijection from seq nat to nat.                      
+      CodeSeq.decode == bijection inverse to CodeSeq.code.                  
+ In addition to the lemmas relevant to these definitions, this file also    
+ contains definitions of a Canonical choiceType and countType instances for 
+ all basic datatypes (e.g., nat, bool, subTypes, pairs, sums, etc.).         
+#+END_EXAMPLE
+*** mathcomp.ssreflect.path
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.path.html
+#+BEGIN_EXAMPLE
+ The basic theory of paths over an eqType; this file is essentially a    
+ complement to seq.v. Paths are non-empty sequences that obey a progression 
+ relation. They are passed around in three parts: the head and tail of the  
+ sequence, and a proof of (boolean) predicate asserting the progression.    
+ This "exploded" view is rarely embarrassing, as the first two parameters   
+ are usually inferred from the type of the third; on the contrary, it saves 
+ the hassle of constantly constructing and destructing a dependent record.  
+    We define similarly cycles, for which we allow the empty sequence,      
+ which represents a non-rooted empty cycle; by contrast, the "empty" path   
+ from a point x is the one-item sequence containing only x.                 
+   We allow duplicates; uniqueness, if desired (as is the case for several  
+ geometric constructions), must be asserted separately. We do provide       
+ shorthand, but only for cycles, because the equational properties of       
+ "path" and "uniq" are unfortunately  incompatible (esp. wrt "cat").        
+    We define notations for the common cases of function paths, where the   
+ progress relation is actually a function. In detail:                       
+   path e x p == x :: p is an e-path [:: x_0; x_1; ... ; x_n], i.e., we     
+                 e x_i x{i+1} for all i < n. The path x :: p starts at x   
+                 and ends at last x p.                                      
+  fpath f x p == x :: p is an f-path, where f is a function, i.e., p is of  
+                 the form [:: f x; f (f x); ... ]. This is just a notation   
+                 for path (frel f) x p.                                     
+   sorted e s == s is an e-sorted sequence: either s = [:: ], or s = x :: p  
+                 is an e-path (this is oten used with e = leq or ltn).      
+    cycle e c == c is an e-cycle: either c = [:: ], or c = x :: p with       
+                 x :: (rcons p x) an e-path.                                
+   fcycle f c == c is an f-cycle, for a function f.                         
+ traject f x n == the f-path of size n starting at x                        
+              := [:: x; f x; ...; iter n.-1 f x]                            
+ looping f x n == the f-paths of size greater than n starting at x loop     
+                 back, or, equivalently, traject f x n contains all         
+                 iterates of f at x.                                        
+ merge e s1 s2 == the e-sorted merge of sequences s1 and s2: this is always 
+                 a permutation of s1 ++ s2, and is e-sorted when s1 and s2  
+                 are and e is total.                                        
+     sort e s == a permutation of the sequence s, that is e-sorted when e   
+                 is total (computed by a merge sort with the merge function 
+                 above).                                                    
+   mem2 s x y == x, then y occur in the sequence (path) s; this is          
+                 non-strict: mem2 s x x = (x \in s).                        
+     next c x == the successor of the first occurrence of x in the sequence 
+                 c (viewed as a cycle), or x if x \notin c.                 
+     prev c x == the predecessor of the first occurrence of x in the        
+                 sequence c (viewed as a cycle), or x if x \notin c.        
+    arc c x y == the sub-arc of the sequece c (viewed as a cycle) starting  
+                 at the first occurrence of x in c, and ending just before  
+                 the next ocurrence of y (in cycle order); arc c x y        
+                 returns an unspecified sub-arc of c if x and y do not both 
+                 occur in c.                                                
+  ucycle e c <-> ucycleb e c (ucycle e c is a Coercion target of type Prop) 
+ ufcycle f c <-> c is a simple f-cycle, for a function f.                   
+  shorten x p == the tail a duplicate-free subpath of x :: p with the same  
+                 endpoints (x and last x p), obtained by removing all loops 
+                 from x :: p.                                               
+ rel_base e e' h b <-> the function h is a functor from relation e to       
+                 relation e', EXCEPT at points whose image under h satisfy  
+                 the "base" predicate b:                                    
+                    e' (h x) (h y) = e x y UNLESS b (h x) holds             
+                 This is the statement of the side condition of the path    
+                 functorial mapping lemma map_path.                         
+ fun_base f f' h b <-> the function h is a functor from function f to f',   
+                 except at the preimage of predicate b under h.             
+ We also provide three segmenting dependently-typed lemmas (splitP, splitPl 
+ and splitPr) whose elimination split a path x0 :: p at an internal point x 
+ as follows:                                                                
+
+     splitP applies when x \in p; it replaces p with (rcons p1 x ++ p2), so  
+        that x appears explicitly at the end of the left part. The elimination  
+        of splitP will also simultaneously replace take (index x p) with p1 and 
+        drop (index x p).+1 p with p2.                                          
+
+
+     splitPl applies when x \in x0 :: p; it replaces p with p1 ++ p2 and     
+        simulaneously generates an equation x = last x0 p.                      
+
+
+     splitPr applies when x \in p; it replaces p with (p1 ++ x :: p2), so x  
+        appears explicitly at the start of the right part.                      
+
+ The parts p1 and p2 are computed using index/take/drop in all cases, but   
+ only splitP attemps to subsitute the explicit values. The substitution of  
+ p can be deferred using the dependent equation generation feature of       
+ ssreflect, e.g.: case/splitPr def_p: {1}p / x_in_p => [p1 p2] generates    
+ the equation p = p1 ++ p2 instead of performing the substitution outright. 
+   Similarly, eliminating the loop removal lemma shortenP simultaneously    
+ replaces shorten e x p with a fresh constant p', and last x p with         
+ last x p'.                                                                 
+   Note that although all "path" functions actually operate on the          
+ underlying sequence, we provide a series of lemmas that define their       
+ interaction with thepath and cycle predicates, e.g., the cat_path equation 
+ can be used to split the path predicate after splitting the underlying     
+ sequence.                                                                   
+#+END_EXAMPLE
+*** mathcomp.ssreflect.div
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.div.html
+#+BEGIN_EXAMPLE
+This file deals with divisibility for natural numbers.                     
+ It contains the definitions of:                                            
+      edivn m d   == the pair composed of the quotient and remainder        
+                     of the Euclidean division of m by d.                   
+          m %/ d  == quotient of the Euclidean division of m by d.          
+          m %% d  == remainder of the Euclidean division of m by d.         
+  m = n % [mod d]  <-> m equals n modulo d.                                  
+  m == n % [mod d] <=> m equals n modulo d (boolean version).                
+  m <> n % [mod d] <-> m differs from n modulo d.                            
+  m != n % [mod d] <=> m differs from n modulo d (boolean version).          
+           d %| m <=> d divides m.                                          
+         gcdn m n == the GCD of m and n.                                    
+        egcdn m n == the extended GCD (Bezout coefficient pair) of m and n. 
+                     If egcdn m n = (u, v), then gcdn m n = m * u - n * v.  
+         lcmn m n == the LCM of m and n.                                    
+      coprime m n <=> m and n are coprime (:= gcdn m n == 1).               
+  chinese m n r s == witness of the chinese remainder theorem.              
+ We adjoin an m to operator suffixes to indicate a nested %% (modn), as in  
+   modnDml : m %% d + n = m + n % [mod d].           
+#+END_EXAMPLE
+*** mathcomp.ssreflect.fintype
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.fintype.html
+#+BEGIN_EXAMPLE
+The Finite interface describes Types with finitely many elements,       
+ supplying a duplicate-free sequence of all the elements. It is a subclass  
+ of Countable and thus of Choice and Equality. As with Countable, the       
+ interface explicitly includes these somewhat redundant superclasses to     
+ ensure that Canonical instance inference remains consistent. Finiteness    
+ could be stated more simply by bounding the range of the pickle function   
+ supplied by the Countable interface, but this would yield a useless        
+ computational interpretation due to the wasteful Peano integer encodings.  
+ Because the Countable interface is closely tied to the Finite interface    
+ and is not much used on its own, the Countable mixin is included inside    
+ the Finite mixin; this makes it much easier to derive Finite variants of   
+ interfaces, in this file for subFinType, and in the finalg library.        
+    We define the following interfaces and structures:                      
+         finType == the packed class type of the Finite interface.          
+     FinType T m == the packed finType class for type T and Finite mixin m. 
+  Finite.axiom e <-> every x : T occurs exactly once in e : seq T.          
+   FinMixin ax_e == the Finite mixin for T, encapsulating                   
+                    ax_e : Finite.axiom e for some e : seq T.               
+  UniqFinMixin uniq_e total_e == an alternative mixin constructor that uses 
+                    uniq_e : uniq e and total_e : e =i xpredT.              
+ PcanFinMixin fK == the Finite mixin for T, given f : T -> fT and g with fT 
+                    a finType and fK : pcancel f g.                         
+  CanFinMixin fK == the Finite mixin for T, given f : T -> fT and g with fT 
+                    a finType and fK : cancel f g.                          
+      subFinType == the join interface type for subType and finType.        
+  [finType of T for fT] == clone for T of the finType fT.                   
+  [finType of T] == clone for T of the finType inferred for T.              
+ [subFinType of T] == a subFinType structure for T, when T already has both 
+                    finType and subType structures.                         
+ [finMixin of T by <: ] == a finType structure for T, when T has a subType   
+                   structure over an existing finType.                      
+   We define or propagate the finType structure appropriately for all basic 
+ types : unit, bool, option, prod, sum, sig and sigT. We also define a      
+ generic type constructor for finite subtypes based on an explicit          
+ enumeration:                                                               
+          seq_sub s == the subType of all x \in s, where s : seq T for some 
+                       eqType T; seq_sub s has a canonical finType instance 
+                       when T is a choiceType.                              
+   adhoc_seq_sub_choiceType s, adhoc_seq_sub_finType s ==                   
+                       non-canonical instances for seq_sub s, s : seq T,    
+                       which can be used when T is not a choiceType.        
+ Bounded integers are supported by the following type and operations:       
+    'I_n, ordinal n == the finite subType of integers i < n, whose          
+                       enumeration is {0, ..., n.-1}. 'I_n coerces to nat,  
+                       so all the integer arithmetic functions can be used  
+                       with 'I_n.                                           
+     Ordinal lt_i_n == the element of 'I_n with (nat) value i, given        
+                       lt_i_n : i < n.                                      
+       nat_of_ord i == the nat value of i : 'I_n (this function is a        
+                       coercion so it is not usually displayed).            
+         ord_enum n == the explicit increasing sequence of the i : 'I_n.    
+  cast_ord eq_n_m i == the element j : 'I_m with the same value as i : 'I_n 
+                       given eq_n_m : n = m (indeed, i : nat and j : nat    
+                       are convertible).                                    
+ widen_ord le_n_m i == a j : 'I_m with the same value as i : 'I_n, given    
+                       le_n_m : n <= m.                                     
+          rev_ord i == the complement to n.-1 of i : 'I_n, such that        
+                       i + rev_ord i = n.-1.                                
+            inord k == the i : 'I_n.+1 with value k (n is inferred from the 
+                       context).                                            
+          sub_ord k == the i : 'I_n.+1 with value n - k (n is inferred from 
+                       the context).                                        
+               ord0 == the i : 'I_n.+1 with value 0 (n is inferred from the 
+                       context).                                            
+            ord_max == the i : 'I_n.+1 with value n (n is inferred from the 
+                       context).                                            
+           bump h k == k.+1 if k >= h, else k (this is a nat function).     
+         unbump h k == k.-1 if k > h, else k (this is a nat function).      
+           lift i j == the j' : 'I_n with value bump i j, where i : 'I_n    
+                       and j : 'I_n.-1.                                     
+         unlift i j == None if i = j, else Some j', where j' : 'I_n.-1 has  
+                       value unbump i j, given i, j : 'I_n.                 
+         lshift n j == the i : 'I(m + n) with value j : 'I_m.              
+         rshift m k == the i : 'I(m + n) with value m + k, k : 'I_n.       
+          unsplit u == either lshift n j or rshift m k, depending on        
+                       whether if u : 'I_m + 'I_n is inl j or inr k.        
+            split i == the u : 'I_m + 'I_n such that i = unsplit u; the     
+                       type 'I(m + n) of i determines the split.           
+ Finally, every type T with a finType structure supports the following      
+ operations:                                                                
+           enum A == a duplicate-free list of all the x \in A, where A is a 
+                     collective predicate over T.                           
+             #|A| == the cardinal of A, i.e., the number of x \in A.        
+       enum_val i == the i'th item of enum A, where i : 'I(#|A|).          
+      enum_rank x == the i : 'I(#|T|) such that enum_val i = x.            
+ enum_rank_in Ax0 x == some i : 'I(#|A|) such that enum_val i = x if       
+                     x \in A, given Ax0 : x0 \in A.                         
+      A \subset B <=> all x \in A satisfy x \in B.                          
+      A \proper B <=> all x \in A satisfy x \in B but not the converse.     
+ [disjoint A & B] <=> no x \in A satisfies x \in B.                         
+        image f A == the sequence of f x for all x : T such that x \in A    
+                     (where a is an applicative predicate), of length #|P|. 
+                     The codomain of F can be any type, but image f A can   
+                     only be used as a collective predicate is it is an     
+                     eqType.                                                
+          codom f == a sequence spanning the codomain of f (:= image f T).  
+  [seq F | x : T in A] := image (fun x : T => F) A.                         
+       [seq F | x : T] := [seq F | x <- {: T} ].                             
+      [seq F | x in A], [seq F | x] == variants without casts.              
+        iinv im_y == some x such that P x holds and f x = y, given          
+                     im_y : y \in image f P.                                
+     invF inj_f y == the x such that f x = y, for inj_j : injective f with  
+                     f : T -> T.                                            
+  dinjectiveb A f <=> the restriction of f : T -> R to A is injective       
+                     (this is a bolean predicate, R must be an eqType).     
+     injectiveb f <=> f : T -> R is injective (boolean predicate).          
+         pred0b A <=> no x : T satisfies x \in A.                           
+    [forall x, P] <=> P (in which x can appear) is true for all values of x 
+                     x must range over a finType.                           
+    [exists x, P] <=> P is true for some value of x.                        
+      [forall (x | C), P] := [forall x, C ==> P].                           
+       [forall x in A, P] := [forall (x | x \in A), P].                     
+      [exists (x | C), P] := [exists x, C && P].                            
+       [exists x in A, P] := [exists (x | x \in A), P].                     
+ and typed variants [forall x : T, P], [forall (x : T | C), P],             
+   [exists x : T, P], [exists x : T in A, P], etc.                          
+
+
+    > The outer brackets can be omitted when nesting finitary quantifiers,    
+        e.g., [forall i in I, forall j in J, exists a, f i j == a].             
+           'forall_pP <-> view for [forall x, p _ ], for pP : reflect .. (p _).  
+           'exists_pP <-> view for [exists x, p _ ], for pP : reflect .. (p _).  
+        'forall_in_pP <-> view for [forall x in .., p _ ], for pP as above.      
+        'exists_in_pP <-> view for [exists x in .., p _ ], for pP as above.      
+         [pick x | P] == Some x, for an x such that P holds, or None if there   
+                         is no such x.                                          
+         [pick x : T] == Some x with x : T, provided T is nonempty, else None.  
+        [pick x in A] == Some x, with x \in A, or None if A is empty.           
+
+
+
+ [pick x in A | P] == Some x, with x \in A such that P holds, else None.    
+   [pick x | P & Q] := [pick x | P & Q].                                    
+ [pick x in A | P & Q] := [pick x | P & Q].                                 
+ and (un)typed variants [pick x : T | P], [pick x : T in A], [pick x], etc. 
+ [arg min(i < i0 | P) M] == a value i : T minimizing M : nat, subject      
+                   to the condition P (i may appear in P and M), and        
+                   provided P holds for i0.                                 
+ [arg max(i > i0 | P) M] == a value i maximizing M subject to P and        
+                   provided P holds for i0.                                 
+ [arg min(i < i0 in A) M] == an i \in A minimizing M if i0 \in A.          
+ [arg max(i > i0 in A) M] == an i \in A maximizing M if i0 \in A.          
+ [arg min(i < i0) M] == an i : T minimizing M, given i0 : T.               
+ [arg max(i > i0) M] == an i : T maximizing M, given i0 : T.               
+   These are special instances of                                           
+ [arg[ord](i < i0 | P) F] == a value i : I, minimizing F wrt ord : rel T   
+                              such that for all j : T, ord (F i) (F j)      
+                              subject to the condition P, and provided P i0 
+                              where I : finType, T : eqType and F : I -> T  
+ [arg[ord](i < i0 in A) F] == an i \in A minimizing F wrt ord, if i0 \in A.
+ [arg[ord](i < i0) F] == an i : T minimizing F wrt ord, given i0 : T.       
+
+#+END_EXAMPLE
+*** mathcomp.ssreflect.tuple
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.tuple.html
+#+BEGIN_EXAMPLE
+Tuples, i.e., sequences with a fixed (known) length. We define:            
+         n.-tuple T == the type of n-tuples of elements of type T.          
+       [tuple of s] == the tuple whose underlying sequence (value) is s.    
+                       The size of s must be known: specifically, Coq must  
+                       be able to infer a Canonical tuple projecting on s.  
+         in_tuple s == the (size s)-tuple with value s.                     
+            [tuple] == the empty tuple.                                     
+ [tuple x1; ..; xn] == the explicit n.-tuple <x1; ..; xn>.                  
+  [tuple E | i < n] == the n.-tuple with general term E (i : 'I_n is bound  
+                       in E).                                               
+        tcast Emn t == the m-tuple t cast as an n-tuple using Emn : m = n.  
+ As n.-tuple T coerces to seq t, all seq operations (size, nth, ...) can be 
+ applied to t : n.-tuple T; we provide a few specialized instances when     
+ avoids the need for a default value.                                       
+            tsize t == the size of t (the n in n.-tuple T)                  
+           tnth t i == the i'th component of t, where i : 'I_n.             
+         [tnth t i] == the i'th component of t, where i : nat and i < n     
+                       is convertible to true.                              
+            thead t == the first element of t, when n is m.+1 for some m.   
+ Most seq constructors (cons, behead, cat, rcons, belast, take, drop, rot,  
+ map, ...) can be used to build tuples via the [tuple of s] construct.      
+   Tuples are actually a subType of seq, and inherit all combinatorial      
+ structures, including the finType structure.                               
+   Some useful lemmas and definitions:                                      
+     tuple0 : [tuple] is the only 0.-tuple                                  
+     tupleP : elimination view for n.+1.-tuple                              
+     ord_tuple n : the n.-tuple of all i : 'I_n                              
+#+END_EXAMPLE
+*** mathcomp.ssreflect.finfun
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.finfun.html
+#+BEGIN_EXAMPLE
+This file implements a type for functions with a finite domain:            
+      {ffun aT -> rT} where aT should have a finType structure,             
+      {ffun forall x : aT, rT} for dependent functions over a finType aT,   
+  and {ffun funT} where funT expands to a product over a finType.           
+ Any eqType, choiceType, countType and finType structures on rT extend to   
+ {ffun aT -> rT} as Leibnitz equality and extensional equalities coincide.  
+     (T ^ n)%type is notation for {ffun 'I_n -> T}, which is isomorphic     
+   to n.-tuple T, but is structurally positive and thus can be used to      
+   define inductive types, e.g., Inductive tree := node n of tree ^ n (see  
+   mid-file for an expanded example).                                       
+> More generally, {ffun fT} is always structurally positive.             
+   {ffun fT} inherits combinatorial structures of rT, i.e., eqType,         
+ choiceType, countType, and finType. However, due to some limitations of    
+ the Coq 8.9 unification code the structures are only inherited in the      
+ NON dependent case, when rT does not depend on x.                          
+  For f : {ffun fT} with fT := forall x : aT, rT we define                  
+              f x == the image of x under f (f coerces to a CiC function)   
+> The coercion is structurally decreasing, e.g., Coq will accept         
+   Fixpoint size t := let: node n f := t in sumn (codom (size \o f)) + 1.   
+ as structurally decreasing on t of the inductive tree type above.          
+       {dffun fT} == alias for {ffun fT} that inherits combinatorial        
+                     structures on rT, when rT DOES depend on x.            
+      total_fun g == the function induced by a dependent function g of type 
+                     forall x, rT on the total space {x : aT & rT}.         
+                  := fun x =>  Tagged (fun x => rT) (g x).                  
+        tfgraph f == the total function graph of f, i.e., the #|aT|.-tuple  
+                     of all the (dependent pair) values of total_fun f.     
+         finfun g == the f extensionally equal to g, and the RECOMMENDED    
+                     interface for building elements of {ffun fT}.          
+ [ffun x : aT => E] := finfun (fun x : aT => E).                            
+                     There should be an explicit type constraint on E if    
+                     type does not depend on x, due to the Coq unification  
+                     limitations referred to above.                         
+        ffun0 aT0 == the trivial finfun, from a proof aT0 that #|aT| = 0.   
+   f \in family F == f belongs to the family F (f x \in F x for all x)      
+   There are addidional operations for non-dependent finite functions,      
+ i.e., f in {ffun aT -> rT}.                                                
+    [ffun x => E] := finfun (fun x => E).                                   
+                     The type of E must not depend on x; this restriction   
+                     is a mitigation of the aforementioned Coq unification  
+                     limitations.                                           
+       [ffun=> E] := [ffun _ => E] (E should not have a dependent type).    
+         fgraph f == the function graph of f, i.e., the #|aT|.-tuple        
+                     listing the values of f x, for x ranging over enum aT. 
+         Finfun G == the finfun f whose (simple) function graph is G.       
+  f \in ffun_on R == the range of f is a subset of R.                       
+     y.-support f == the y-support of f, i.e., [pred x | f x != y].         
+                     Thus, y.-support f \subset D means f has y-support D.  
+                     We will put Notation support := 0.-support in ssralg.  
+ f \in pffun_on y D R == f is a y-partial function from D to R:             
+                     f has y-support D and f x \in R for all x \in D.       
+  f \in pfamily y D F == f belongs to the y-partial family from D to F:     
+                     f has y-support D and f x \in F x for all x \in D.
+#+END_EXAMPLE
+*** mathcomp.ssreflect.bigop
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.bigop.html
+#+BEGIN_EXAMPLE
+This file provides a generic definition for iterating an operator over a   
+ set of indices (bigop); this big operator is parametrized by the return    
+ type (R), the type of indices (I), the operator (op), the default value on 
+ empty lists (idx), the range of indices (r), the filter applied on this    
+ range (P) and the expression we are iterating (F). The definition is not   
+ to be used directly, but via the wide range of notations provided and      
+ and which support a natural use of big operators.                          
+   To improve performance of the Coq typechecker on large expressions, the  
+ bigop constant is OPAQUE. It can however be unlocked to reveal the         
+ transparent constant reducebig, to let Coq expand summation on an explicit 
+ sequence with an explicit test.                                            
+   The lemmas can be classified according to the operator being iterated:   
+  1. Results independent of the operator: extensionality with respect to    
+     the range of indices, to the filtering predicate or to the expression  
+     being iterated; reindexing, widening or narrowing of the range of      
+     indices; we provide lemmas for the special cases where indices are     
+     natural numbers or bounded natural numbers ("ordinals"). We supply     
+     several "functional" induction principles that can be used with the    
+     ssreflect 1.3 "elim" tactic to do induction over the index range for   
+     up to 3 bigops simultaneously.                                         
+  2. Results depending on the properties of the operator:                   
+     We distinguish: monoid laws (op is associative, idx is an identity     
+     element), abelian monoid laws (op is also commutative), and laws with  
+     a distributive operation (semi-rings). Examples of such results are    
+     splitting, permuting, and exchanging bigops.                           
+ A special section is dedicated to big operators on natural numbers.         
+ 
+
+
+  Notations:                                                                 
+ The general form for iterated operators is                                 
+         <bigop>_<range> <general_term>                                     
+
+
+     <bigop> is one of \big[op/idx], \sum, \prod, or \max (see below).        
+
+
+     <general_term> can be any expression.                                    
+
+
+     <range> binds an index variable in <general_term>; <range> is one of     
+        (i <- s)     i ranges over the sequence s.                              
+        (m <= i < n) i ranges over the nat interval m, m+1, ..., n-1.           
+        (i < n)      i ranges over the (finite) type 'I_n (i.e., ordinal n).    
+        (i : T)      i ranges over the finite type T.                           
+        i or (i)     i ranges over its (inferred) finite type.                  
+        (i in A)     i ranges over the elements that satisfy the collective     
+                     predicate A (the domain of A must be a finite type).       
+        (i <- s | <condition>) limits the range to the i for which <condition>  
+                     holds. <condition> can be any expression that coerces to   
+                     bool, and may mention the bound index i. All six kinds of  
+                     ranges above can have a <condition> part.                  
+
+
+     One can use the "\big[op/idx]" notations for any operator.               
+
+
+     BIG_F and BIG_P are pattern abbreviations for the <general_term> and     
+       <condition> part of a \big ... expression; for (i in A) and (i in A | C) 
+       ranges the term matched by BIG_P will include the i \in A condition.     
+
+
+     The (locked) head constant of a \big notation is bigop.                  
+
+
+     The "\sum", "\prod" and "\max" notations in the %N scope are used for    
+       natural numbers with addition, multiplication and maximum (and their     
+       corresponding neutral elements), respectively.                           
+
+
+     The "\sum" and "\prod" reserved notations are overloaded in ssralg in    
+       the %R scope; in mxalgebra, vector & falgebra in the %MS and %VS scopes; 
+       "\prod" is also overloaded in fingroup, in the %g and %G scopes.         
+
+
+     We reserve "\bigcup" and "\bigcap" notations for iterated union and      
+       intersection (of sets, groups, vector spaces, etc).                       
+
+
+
+ 
+
+
+  Tips for using lemmas in this file:                                        
+ To apply a lemma for a specific operator: if no special property is        
+ required for the operator, simply apply the lemma; if the lemma needs      
+ certain properties for the operator, make sure the appropriate Canonical   
+ instances are declared.                                                     
+ 
+
+
+  Interfaces for operator properties are packaged in the Monoid submodule:   
+     Monoid.law idx == interface (keyed on the operator) for associative    
+                       operators with identity element idx.                 
+ Monoid.com_law idx == extension (telescope) of Monoid.law for operators    
+                       that are also commutative.                           
+ Monoid.mul_law abz == interface for operators with absorbing (zero)        
+                       element abz.                                         
+ Monoid.add_law idx mop == extension of Monoid.com_law for operators over   
+                       which operation mop distributes (mop will often also 
+                       have a Monoid.mul_law idx structure).                
+ [law of op], [com_law of op], [mul_law of op], [add_law mop of op] ==      
+                       syntax for cloning Monoid structures.                
+      Monoid.Theory == submodule containing basic generic algebra lemmas    
+                       for operators satisfying the Monoid interfaces.      
+       Monoid.simpm == generic monoid simplification rewrite multirule.     
+ Monoid structures are predeclared for many basic operators: (_ && _)%B,    
+ (_ || _)%B, (_ (+) _)%B (exclusive or) , (_ + _)%N, (_ * _)%N, maxn,       
+ gcdn, lcmn and (_ ++ _)%SEQ (list concatenation).                           
+ 
+
+
+  Additional documentation for this file:                                    
+ Y. Bertot, G. Gonthier, S. Ould Biha and I. Pasca.                         
+ Canonical Big Operators. In TPHOLs 2008, LNCS vol. 5170, Springer.         
+ Article available at:                                                      
+     http://hal.inria.fr/docs/00/33/11/93/PDF/main.pdf                       
+ 
+
+
+  Examples of use in: poly.v, matrix.v                                        
+
+#+END_EXAMPLE
+*** mathcomp.ssreflect.fingraph
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.fingraph.html
+#+BEGIN_EXAMPLE
+This file develops the theory of finite graphs represented by an "edge"    
+ relation over a finType T; this mainly amounts to the theory of the        
+ transitive closure of such relations.                                      
+   For g : T -> seq T, e : rel T and f : T -> T we define:                  
+         grel g == the adjacency relation y \in g x of the graph g.         
+       rgraph e == the graph (x |-> enum (e x)) of the relation e.          
+    dfs g n v x == the list of points traversed by a depth-first search of  
+                   the g, at depth n, starting from x, and avoiding v.      
+ dfs_path g v x y <-> there is a path from x to y in g \ v.                 
+      connect e == the reflexive transitive closure of e (computed by dfs). 
+  connect_sym e <-> connect e is symmetric, hence an equivalence relation.  
+       root e x == a representative of connect e x, which is the component  
+                   of x in the transitive closure of e.                     
+        roots e == the codomain predicate of root e.                        
+     n_comp e a == the number of e-connected components of a, when a is     
+                   e-closed and connect e is symmetric.                     
+                   equivalence classes of connect e if connect_sym e holds. 
+     closed e a == the collective predicate a is e-invariant.               
+    closure e a == the e-closure of a (the image of a under connect e).     
+ rel_adjunction h e e' a <-> in the e-closed domain a, h is the left part   
+                   of an adjunction from e to another relation e'.          
+     fconnect f == connect (frel f), i.e., "connected under f iteration".   
+      froot f x == root (frel f) x, the root of the orbit of x under f.     
+       froots f == roots (frel f) == orbit representatives for f.           
+      orbit f x == lists the f-orbit of x.                                  
+   findex f x y == index of y in the f-orbit of x.                          
+      order f x == size (cardinal) of the f-orbit of x.                     
+  order_set f n == elements of f-order n.                                   
+         finv f == the inverse of f, if f is injective.                     
+                := finv f x := iter (order x).-1 f x.                       
+      fcard f a == number of orbits of f in a, provided a is f-invariant    
+                   f is one-to-one.                                         
+    fclosed f a == the collective predicate a is f-invariant.               
+   fclosure f a == the closure of a under f iteration.                      
+ fun_adjunction == rel_adjunction (frel f).                                  
+#+END_EXAMPLE
+*** mathcomp.ssreflect.prime
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.prime.html
+#+BEGIN_EXAMPLE
+This file contains the definitions of:                                     
+        prime p <=> p is a prime.                                           
+       primes m == the sorted list of prime divisors of m > 1, else [:: ].   
+    pfactor p e == the value p ^ e of a prime factor (p, e).                
+    NumFactor f == print version of a prime factor, converting the prime    
+                   component to a Num (which can print large values).       
+ prime_decomp m == the list of prime factors of m > 1, sorted by primes.    
+       logn p m == the e such that (p ^ e) \in prime_decomp n, else 0.      
+  trunc_log p m == the largest e such that p ^ e <= m, or 0 if p or m is 0. 
+         pdiv n == the smallest prime divisor of n > 1, else 1.             
+     max_pdiv n == the largest prime divisor of n > 1, else 1.              
+     divisors m == the sorted list of divisors of m > 0, else [:: ].         
+      totient n == the Euler totient (#|{i < n | i and n coprime}|).        
+       nat_pred == the type of explicit collective nat predicates.          
+                := simpl_pred nat.                                          
+
+
+    > We allow the coercion nat >-> nat_pred, interpreting p as pred1 p.   
+
+
+    > We define a predType for nat_pred, enabling the notation p \in pi.   
+
+
+    > We don't have nat_pred >-> pred, which would imply nat >-> Funclass. 
+               pi^' == the complement of pi : nat_pred, i.e., the nat_pred such 
+                       that (p \in pi^') = (p \notin pi).                       
+             \pi(n) == the set of prime divisors of n, i.e., the nat_pred such  
+                       that (p \in \pi(n)) = (p \in primes n).                  
+             \pi(A) == the set of primes of #|A|, with A a collective predicate 
+                       over a finite Type.                                      
+
+
+    > The notation \pi(A) is implemented with a collapsible Coercion. The  
+           type of A must coerce to finpred_sort (e.g., by coercing to {set T}) 
+           and not merely implement the predType interface (as seq T does).     
+
+
+    > The expression #|A| will only appear in \pi(A) after simplification  
+           collapses the coercion, so it is advisable to do so early on.        
+         pi.-nat n <=> n > 0 and all prime divisors of n are in pi.             
+              n`pi == the pi-part of n -- the largest pi.-nat divisor of n.    
+                   := \prod(0 <= p < n.+1 | p \in pi) p ^ logn p n.            
+
+
+    > The nat >-> nat_pred coercion lets us write p.-nat n and n`p.       
+
+
+
+ In addition to the lemmas relevant to these definitions, this file also    
+ contains the dvdn_sum lemma, so that bigop.v doesn't depend on div.v.       
+#+END_EXAMPLE
+*** mathcomp.ssreflect.finset
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.finset.html
+#+BEGIN_EXAMPLE
+This file defines a type for sets over a finite Type, similar to the type  
+ of functions over a finite Type defined in finfun.v (indeed, based in it): 
+  {set T} where T must have a finType structure                             
+ We equip {set T} itself with a finType structure, hence Leibnitz and       
+ extensional equalities coincide on {set T}, and we can form {set {set T}}  
+   If A, B : {set T} and P : {set {set T}}, we define:                      
+           x \in A == x belongs to A (i.e., {set T} implements predType,    
+                      by coercion to pred_sort).                            
+             mem A == the predicate corresponding to A.                     
+          finset p == the set corresponding to a predicate p.               
+       [set x | P] == the set containing the x such that P is true (x may   
+                      appear in P).                                         
+   [set x | P & Q] := [set x | P && Q].                                     
+      [set x in A] == the set containing the x in a collective predicate A. 
+  [set x in A | P] == the set containing the x in A such that P is true.    
+ [set x in A | P & Q] := [set x in A | P && Q].                             
+  All these have typed variants [set x : T | P], [set x : T in A], etc.     
+              set0 == the empty set.                                        
+  [set: T] or setT == the full set (the A containing all x : T).            
+           A :|: B == the union of A and B.                                 
+            x |: A == A with the element x added (:= [set x] :| A).         
+           A :&: B == the intersection of A and B.                          
+              ~: A == the complement of A.                                  
+           A :\: B == the difference A minus B.                             
+            A :\ x == A with the element x removed (:= A :\: [set x]).      
+ \bigcup<range> A == the union of all A, for i in <range> (i is bound in   
+                      A, see bigop.v).                                      
+ \bigcap<range> A == the intersection of all A, for i in <range>.          
+           cover P == the union of the set of sets P.                       
+        trivIset P <=> the elements of P are pairwise disjoint.             
+     partition P A <=> P is a partition of A.                               
+        pblock P x == a block of P containing x, or else set0.              
+ equivalence_partition R D == the partition induced on D by the relation R  
+                       (provided R is an equivalence relation in D).        
+       preim_partition f D == the partition induced on D by the equivalence 
+                              [rel x y | f x == f y].                       
+    is_transversal X P D <=> X is a transversal of the partition P of D.    
+   transversal P D == a transversal of P, provided P is a partition of D.   
+  transversal_repr x0 X B == a representative of B \in P selected by the    
+                      tranversal X of P, or else x0.                        
+        powerset A == the set of all subset of the set A.                   
+          P ::&: A == those sets in P that are subsets of the set A.        
+         f @^-1: A == the preimage of the collective predicate A under f.   
+            f @: A == the image set of the collective predicate A by f.     
+       f @2:(A, B) == the image set of A x B by the binary function f.      
+  [set E | x in A] == the set of all the values of the expression E, for x  
+                      drawn from the collective predicate A.                
+  [set E | x in A & P] == the set of values of E for x drawn from A, such   
+                      that P is true.                                       
+  [set E | x in A, y in B] == the set of values of E for x drawn from A and 
+                      and y drawn from B; B may depend on x.                
+  [set E | x <- A, y <- B & P] == the set of values of E for x drawn from A 
+                      y drawn from B, such that P is trye.                  
+  [set E | x : T] == the set of all values of E, with x in type T.          
+  [set E | x : T & P] == the set of values of E for x : T s.t. P is true.   
+  [set E | x : T, y : U in B], [set E | x : T, y : U in B & P],             
+  [set E | x : T in A, y : U], [set E | x : T in A, y : U & P],             
+  [set E | x : T, y : U], [set E | x : T, y : U & P]                        
+             == type-ranging versions of the binary comprehensions.         
+   [set E | x : T in A], [set E | x in A, y], [set E | x, y & P], etc.      
+             == typed and untyped variants of the comprehensions above.     
+                The types may be required as type inference processes E     
+                before considering A or B. Note that type casts in the      
+                binary comprehension must either be both present or absent  
+                and that there are no untyped variants for single-type      
+                comprehension as Coq parsing confuses [x | P] and [E | x].  
+        minset p A == A is a minimal set satisfying p.                      
+        maxset p A == A is a maximal set satisfying p.                      
+ We also provide notations A :=: B, A :<>: B, A :==: B, A :!=: B, A :=P: B  
+ that specialize A = B, A <> B, A == B, etc., to {set _}. This is useful    
+ for subtypes of {set T}, such as {group T}, that coerce to {set T}.        
+   We give many lemmas on these operations, on card, and on set inclusion.  
+ In addition to the standard suffixes described in ssrbool.v, we associate  
+ the following suffixes to set operations:                                  
+  0 -- the empty set, as in in_set0 : (x \in set0) = false.                 
+  T -- the full set, as in in_setT : x \in [set: T].                        
+  1 -- a singleton set, as in in_set1 : (x \in [set a]) = (x == a).         
+  2 -- an unordered pair, as in                                             
+          in_set2 : (x \in [set a; b]) = (x == a) || (x == b).              
+  C -- complement, as in setCK : ~: ~: A = A.                               
+  I -- intersection, as in setIid : A :&: A = A.                            
+  U -- union, as in setUid : A :|: A = A.                                   
+  D -- difference, as in setDv : A :\: A = set0.                            
+  S -- a subset argument, as in                                             
+         setIS: B \subset C -> A :&: B \subset A :&: C                      
+ These suffixes are sometimes preceded with an `s' to distinguish them from 
+ their basic ssrbool interpretation, e.g.,                                  
+  card1 : #|pred1 x| = 1 and cards1 : #| [set x]| = 1                        
+ We also use a trailling `r' to distinguish a right-hand complement from    
+ commutativity, e.g.,                                                       
+  setIC : A :&: B = B :&: A and setICr : A :&: ~: A = set0.                  
+
+#+END_EXAMPLE
+*** mathcomp.ssreflect.binomial
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.binomial.html
+#+BEGIN_EXAMPLE
+This files contains the definition of:                                     
+   'C(n, m) == the binomial coeficient n choose m.                          
+     n ^_ m == the falling (or lower) factorial of n with m terms, i.e.,    
+               the product n * (n - 1) * ... * (n - m + 1).                 
+               Note that n ^_ m = 0 if m > n, and 'C(n, m) = n ^_ m %/ m/!. 
+
+ 
+
+
+ In additions to the properties of these functions, we prove a few seminal  
+ results such as triangular_sum, Wilson and Pascal; their proofs are good   
+ examples of how to manipulate expressions with bigops.                      
+
+#+END_EXAMPLE
+*** mathcomp.ssreflect.generic_quotient
+https://math-comp.github.io/htmldoc/mathcomp.ssreflect.generic_quotient.html
+#+BEGIN_EXAMPLE
+Provided a base type T, this files defines an interface for quotients Q   
+ of the type T with explicit functions for canonical surjection (\pi       
+ : T -> Q) and for choosing a representative (repr : Q -> T).  It then     
+ provide a helper to quotient T by a decidable equivalence relation (e     
+ : rel T) if T is a choiceType (or encodable as a choiceType modulo e).    
+
+ 
+
+
+ See "Pragamatic Quotient Types in Coq", proceedings of ITP2013,           
+ by Cyril Cohen.                                                           
+
+ 
+
+
+Generic Quotienting ***
+
+
+   QuotClass (reprK : cancel repr pi) == builds the quotient which         
+              canonical surjection function is pi and which                
+              representative selection function is repr.                   
+   QuotType Q class == packs the quotClass class to build a quotType       
+                       You may declare such elements as Canonical          
+            \pi_Q x == the class in Q of the element x of T                
+              \pi x == the class of x where Q is inferred from the context 
+             repr c == canonical representative in T of the class c        
+    [quotType of Q] == clone of the canonical quotType structure of Q on T 
+     x = y % [mod Q] := \pi_Q x = \pi_Q y                                   
+                    <-> x and y are equal modulo Q                         
+    x <> y % [mod Q] := \pi_Q x <> \pi_Q y                                  
+    x == y % [mod Q] := \pi_Q x == \pi_Q y                                  
+    x != y % [mod Q] := \pi_Q x != \pi_Q y                                  
+
+ 
+
+
+ The quotient_scope is delimited by %qT                                    
+ The most useful lemmas are piE and reprK                                  
+
+ 
+
+
+Morphisms ***
+
+
+ One may declare existing functions and predicates as liftings of some     
+ morphisms for a quotient.                                                 
+    PiMorph1 pi_f == where pi_f : {morph \pi : x / f x >-> fq x}           
+                     declares fq : Q -> Q as the lifting of f : T -> T     
+    PiMorph2 pi_g == idem with pi_g : {morph \pi : x y / g x y >-> gq x y} 
+     PiMono1 pi_p == idem with pi_p : {mono \pi : x / p x >-> pq x}        
+     PiMono2 pi_r == idem with pi_r : {morph \pi : x y / r x y >-> rq x y} 
+   PiMorph11 pi_f == idem with pi_f : {morph \pi : x / f x >-> fq x}       
+                     where fq : Q -> Q' and f : T -> T'.                   
+       PiMorph eq == Most general declaration of compatibility,            
+                     /!\ use with caution /!\                              
+ One can use the following helpers to build the liftings which may or      
+ may not satisfy the above properties (but if they do not, it is           
+ probably not a good idea to define them):                                 
+       lift_op1 Q f := lifts f : T -> T                                    
+       lift_op2 Q g := lifts g : T -> T -> T                               
+      lift_fun1 Q p := lifts p : T -> R                                    
+      lift_fun2 Q r := lifts r : T -> T -> R                               
+   lift_op11 Q Q' f := lifts f : T -> T'                                   
+ There is also the special case of constants and embedding functions       
+ that one may define and declare as compatible with Q using:               
+    lift_cst Q x := lifts x : T to Q                                       
+       PiConst c := declare the result c of the previous construction as   
+                    compatible with Q                                      
+  lift_embed Q e := lifts e : R -> T to R -> Q                             
+       PiEmbed f := declare the result f of the previous construction as   
+                    compatible with Q                                      
+
+ 
+
+
+Quotients that have an eqType structure ***
+
+
+ Having a canonical (eqQuotType e) structure enables piE to replace terms  
+ of the form (x == y) by terms of the form (e x' y') if x and y are        
+ canonical surjections of some x' and y'.                                  
+    EqQuotType e Q m == builds an (eqQuotType e) structure on Q from the   
+                        morphism property m                                
+                        where m : {mono \pi : x y / e x y >-> x == y}      
+   [eqQuotType of Q] == clones the canonical eqQuotType structure of Q     
+
+ 
+
+
+Equivalence and quotient by an equivalence ***
+
+
+  EquivRel r er es et == builds an equiv_rel structure based on the        
+                         reflexivity, symmetry and transitivity property   
+                         of a boolean relation.                            
+          {eq_quot e} == builds the quotType of T by equiv                 
+                         where e : rel T is an equiv_rel                   
+                         and T is a choiceType or a (choiceTypeMod e)      
+                         it is canonically an eqType, a choiceType,        
+                         a quotType and an eqQuotType.                     
+    x = y % [mod_eq e] := x = y % [mod {eq_quot e} ]                          
+                      <-> x and y are equal modulo e                       
+#+END_EXAMPLE
+*** mathcomp.ssreflect.all_ssreflect
+Requires and exports mathcomp.ssreflect.*.
+** mathcomp.algebra
+*** mathcomp.algebra.ssralg
+https://math-comp.github.io/htmldoc/mathcomp.algebra.ssralg.html
+#+BEGIN_EXAMPLE
+
+   The algebraic part of the Algebraic Hierarchy, as described in           
+          ``Packaging mathematical structures'', TPHOLs09, by               
+   Francois Garillot, Georges Gonthier, Assia Mahboubi, Laurence Rideau     
+
+ This file defines for each Structure (Zmodule, Ring, etc ...) its type,    
+ its packers and its canonical properties :                                 
+
+Zmodule (additive abelian groups):
+
+              zmodType == interface type for Zmodule structure.             
+ ZmodMixin addA addC add0x addNx == builds the mixin for a Zmodule from the 
+                          algebraic properties of its operations.           
+          ZmodType V m == packs the mixin m to build a Zmodule of type      
+                          zmodType. The carrier type V must have a          
+                          choiceType canonical structure.                   
+ [zmodType of V for S] == V-clone of the zmodType structure S: a copy of S  
+                          where the sort carrier has been replaced by V,    
+                          and which is therefore a zmodType structure on V. 
+                          The sort carrier for S must be convertible to V.  
+       [zmodType of V] == clone of a canonical zmodType structure on V.     
+                          Similar to the above, except S is inferred, but   
+                          possibly with a syntactically different carrier.  
+                     0 == the zero (additive identity) of a Zmodule.        
+                 x + y == the sum of x and y (in a Zmodule).                
+
+     x == the opposite (additive inverse) of x.             
+
+                 x - y == the difference of x and y; this is only notation  
+                          for x + (- y).                                    
+                x *+ n == n times x, with n in nat (non-negative), i.e.,    
+                          x + (x + .. (x + x)..) (n terms); x *+ 1 is thus  
+                          convertible to x, and x *+ 2 to x + x.            
+                x *- n == notation for - (x *+ n), the opposite of x *+ n.  
+        \sum<range> e == iterated sum for a Zmodule (cf bigop.v).          
+                  e`i == nth 0 e i, when e : seq M and M has a zmodType    
+                          structure.                                        
+             support f == 0.-support f, i.e., [pred x | f x != 0].          
+         oppr_closed S <-> collective predicate S is closed under opposite. 
+         addr_closed S <-> collective predicate S is closed under finite    
+                           sums (0 and x + y in S, for x, y in S).          
+         zmod_closed S <-> collective predicate S is closed under zmodType  
+                          operations (0 and x - y in S, for x, y in S).     
+                          This property coerces to oppr_pred and addr_pred. 
+         OpprPred oppS == packs oppS : oppr_closed S into an opprPred S     
+                          interface structure associating this property to  
+                          the canonical pred_key S, i.e. the k for which S  
+                          has a Canonical keyed_pred k structure (see file  
+                          ssrbool.v).                                       
+         AddrPred addS == packs addS : addr_closed S into an addrPred S     
+                          interface structure associating this property to  
+                          the canonical pred_key S (see above).             
+         ZmodPred oppS == packs oppS : oppr_closed S into an zmodPred S     
+                          interface structure associating the zmod_closed   
+                          property to the canonical pred_key S (see above), 
+                          which must already be an addrPred.                
+ [zmodMixin of M by <: ] == zmodType mixin for a subType whose base type is  
+                          a zmodType and whose predicate's canonical        
+                          pred_key is a zmodPred.                           
+> Coq can be made to behave as if all predicates had canonical zmodPred  
+     keys by executing Import DefaultKeying GRing.DefaultPred. The required 
+     oppr_closed and addr_closed assumptions will be either abstracted,     
+     resolved or issued as separate proof obligations by the ssreflect      
+     plugin abstraction and Prop-irrelevance functions.                     
+Ring (non-commutative rings):
+
+              ringType == interface type for a Ring structure.              
+ RingMixin mulA mul1x mulx1 mulDx mulxD == builds the mixin for a Ring from 
+                           the algebraic properties of its multiplicative   
+                           operators; the carrier type must have a zmodType 
+                           structure.                                       
+           RingType R m == packs the ring mixin m into a ringType.          
+                    R^c == the converse Ring for R: R^c is convertible to R 
+                           but when R has a canonical ringType structure    
+                           R^c has the converse one: if x y : R^c, then     
+                           x * y = (y : R) * (x : R).                       
+  [ringType of R for S] == R-clone of the ringType structure S.             
+        [ringType of R] == clone of a canonical ringType structure on R.    
+                      1 == the multiplicative identity element of a Ring.   
+                   n%:R == the ring image of an n in nat; this is just      
+                           notation for 1 *+ n, so 1%:R is convertible to 1 
+                           and 2%:R to 1 + 1.                               
+                  x * y == the ring product of x and y.                     
+        \prod<range> e == iterated product for a ring (cf bigop.v).        
+                 x ^+ n == x to the nth power with n in nat (non-negative), 
+                           i.e., x * (x * .. (x * x)..) (n factors); x ^+ 1 
+                           is thus convertible to x, and x ^+ 2 to x * x.   
+         GRing.sign R b := (-1) ^+ b in R : ringType, with b : bool.        
+                           This is a parsing-only helper notation, to be    
+                           used for defining more specific instances.       
+         GRing.comm x y <-> x and y commute, i.e., x * y = y * x.           
+           GRing.lreg x <-> x if left-regular, i.e., *%R x is injective.    
+           GRing.rreg x <-> x if right-regular, i.e., *%R x is injective.   
+               [char R] == the characteristic of R, defined as the set of   
+                           prime numbers p such that p%:R = 0 in R. The set 
+                           [char p] has a most one element, and is          
+                           implemented as a pred_nat collective predicate   
+                           (see prime.v); thus the statement p \in [char R] 
+                           can be read as `R has characteristic p', while   
+                           [char R] =i pred0 means `R has characteristic 0' 
+                           when R is a field.                               
+     Frobenius_aut chRp == the Frobenius automorphism mapping x in R to     
+                           x ^+ p, where chRp : p \in [char R] is a proof   
+                           that R has (non-zero) characteristic p.          
+          mulr_closed S <-> collective predicate S is closed under finite   
+                           products (1 and x * y in S for x, y in S).       
+         smulr_closed S <-> collective predicate S is closed under products 
+                           and opposite (-1 and x * y in S for x, y in S).  
+      semiring_closed S <-> collective predicate S is closed under semiring 
+                           operations (0, 1, x + y and x * y in S).         
+       subring_closed S <-> collective predicate S is closed under ring     
+                           operations (1, x - y and x * y in S).            
+          MulrPred mulS == packs mulS : mulr_closed S into a mulrPred S,    
+        SmulrPred mulS     smulrPred S, semiringPred S, or subringPred S    
+     SemiringPred mulS     interface structure, corresponding to the above  
+      SubRingPred mulS     properties, respectively, provided S already has 
+                           the supplementary zmodType closure properties.   
+                           The properties above coerce to subproperties so, 
+                           e.g., ringS : subring_closed S can be used for   
+                           the proof obligations of all prerequisites.      
+ [ringMixin of R by <: ] == ringType mixin for a subType whose base type is  
+                           a ringType and whose predicate's canonical key   
+                           is a SubringPred.                                
+> As for zmodType predicates, Import DefaultKeying GRing.DefaultPred    
+      turns unresolved GRing.Pred unification constraints into proof        
+      obligations for basic closure assumptions.                            
+ 
+ComRing (commutative Rings):
+
+
+            comRingType == interface type for commutative ring structure.   
+     ComRingType R mulC == packs mulC into a comRingType; the carrier type  
+                           R must have a ringType canonical structure.      
+ ComRingMixin mulA mulC mul1x mulDx == builds the mixin for a Ring (i.e., a 
+                           *non commutative* ring), using the commutativity 
+                           to reduce the number of proof obligations.       
+ [comRingType of R for S] == R-clone of the comRingType structure S.        
+     [comRingType of R] == clone of a canonical comRingType structure on R. 
+ [comRingMixin of R by <: ] == comutativity mixin axiom for R when it is a   
+                           subType of a commutative ring.                   
+
+UnitRing (Rings whose units have computable inverses):
+
+           unitRingType == interface type for the UnitRing structure.       
+ UnitRingMixin mulVr mulrV unitP inv0id == builds the mixin for a UnitRing  
+                           from the properties of the inverse operation and 
+                           the boolean test for being a unit (invertible).  
+                           The inverse of a non-unit x is constrained to be 
+                           x itself (property inv0id). The carrier type     
+                           must have a ringType canonical structure.        
+       UnitRingType R m == packs the unit ring mixin m into a unitRingType. 
+                  WARNING: while it is possible to omit R for most of the   
+                           XxxType functions, R MUST be explicitly given    
+                           when UnitRingType is used with a mixin produced  
+                           by ComUnitRingMixin, in a Canonical definition,  
+                           otherwise the resulting structure will have the  
+                           WRONG sort key and will NOT BE USED during type  
+                           inference.                                       
+ [unitRingType of R for S] == R-clone of the unitRingType structure S.      
+    [unitRingType of R] == clones a canonical unitRingType structure on R.  
+     x \is a GRing.unit <=> x is a unit (i.e., has an inverse).             
+                   x^-1 == the ring inverse of x, if x is a unit, else x.   
+                  x / y == x divided by y (notation for x * y^-1).          
+                 x ^- n := notation for (x ^+ n)^-1, the inverse of x ^+ n. 
+         invr_closed S <-> collective predicate S is closed under inverse.  
+         divr_closed S <-> collective predicate S is closed under division  
+                           (1 and x / y in S).                              
+        sdivr_closed S <-> collective predicate S is closed under division  
+                           and opposite (-1 and x / y in S, for x, y in S). 
+      divring_closed S <-> collective predicate S is closed under unitRing  
+                           operations (1, x - y and x / y in S).            
+         DivrPred invS == packs invS : mulr_closed S into a divrPred S,     
+        SdivrPred invS    sdivrPred S or divringPred S interface structure, 
+      DivringPred invS    corresponding to the above properties, resp.,     
+                          provided S already has the supplementary ringType 
+                          closure properties. The properties above coerce   
+                          to subproperties, as explained above.             
+ [unitRingMixin of R by <: ] == unitRingType mixin for a subType whose base  
+                           type is a unitRingType and whose predicate's     
+                           canonical key is a divringPred and whose ring    
+                           structure is compatible with the base type's.    
+ 
+ComUnitRing (commutative rings with computable inverses):
+
+
+        comUnitRingType == interface type for ComUnitRing structure.        
+ ComUnitRingMixin mulVr unitP inv0id == builds the mixin for a UnitRing (a  
+                           *non commutative* unit ring, using commutativity 
+                           to simplify the proof obligations; the carrier   
+                           type must have a comRingType structure.          
+                           WARNING: ALWAYS give an explicit type argument   
+                           to UnitRingType along with a mixin produced by   
+                           ComUnitRingMixin (see above).                    
+ [comUnitRingType of R] == a comUnitRingType structure for R created by     
+                           merging canonical comRingType and unitRingType   
+                           structures on R.                                 
+ 
+IntegralDomain (integral, commutative, ring with partial inverses):
+
+
+            idomainType == interface type for the IntegralDomain structure. 
+ IdomainType R mulf_eq0 == packs the integrality property into an           
+                           idomainType integral domain structure; R must    
+                           have a comUnitRingType canonical structure.      
+ [idomainType of R for S] == R-clone of the idomainType structure S.        
+     [idomainType of R] == clone of a canonical idomainType structure on R. 
+ [idomainMixin of R by <: ] == mixin axiom for a idomain subType.            
+
+Field (commutative fields):
+
+
+              fieldType == interface type for fields.                       
+  GRing.Field.mixin_of R == the field property: x != 0 -> x \is a unit, for 
+                           x : R; R must be or coerce to a unitRingType.    
+  GRing.Field.axiom inv == the field axiom: x != 0 -> inv x * x = 1 for all 
+                           x. This is equivalent to the property above, but 
+                           does not require a unitRingType as inv is an     
+                           explicit argument.                               
+ FieldUnitMixin mulVf inv0 == a *non commutative unit ring* mixin, using an 
+                           inverse function that satisfies the field axiom  
+                           and fixes 0 (arguments mulVf and inv0, resp.),   
+                           and x != 0 as the Ring.unit predicate. The       
+                           carrier type must be a canonical comRingType.    
+    FieldIdomainMixin m == an *idomain* mixin derived from a field mixin m. 
+ GRing.Field.IdomainType mulVf inv0 == an idomainType incorporating the two 
+                           mixins above, where FieldIdomainMixin is applied 
+                           to the trivial field mixin for FieldUnitMixin.   
+  FieldMixin mulVf inv0 == the (trivial) field mixin for Field.IdomainType. 
+          FieldType R m == packs the field mixin M into a fieldType. The    
+                           carrier type R must be an idomainType.           
+> Given proofs mulVf and inv0 as above, a non-Canonical instances        
+ of fieldType can be created with FieldType _ (FieldMixin mulVf inv0).      
+ For Canonical instances one should always specify the first (sort)         
+ argument of FieldType and other instance constructors, as well as pose     
+ Definitions for unit ring, field, and idomain mixins (in that order).      
+ [fieldType of F for S] == F-clone of the fieldType structure S.            
+       [fieldType of F] == clone of a canonical fieldType structure on F.   
+   [fieldMixin of R by <: ] == mixin axiom for a field subType.              
+ 
+DecidableField (fields with a decidable first order theory):
+
+
+           decFieldType == interface type for DecidableField structure.     
+     DecFieldMixin satP == builds the mixin for a DecidableField from the   
+                           correctness of its satisfiability predicate. The 
+                           carrier type must have a unitRingType structure. 
+       DecFieldType F m == packs the decidable field mixin m into a         
+                           decFieldType; the carrier type F must have a     
+                           fieldType structure.                             
+ [decFieldType of F for S] == F-clone of the decFieldType structure S.      
+    [decFieldType of F] == clone of a canonical decFieldType structure on F 
+           GRing.term R == the type of formal expressions in a unit ring R  
+                           with formal variables 'X_k, k : nat, and         
+                           manifest constants x%:T, x : R. The notation of  
+                           all the ring operations is redefined for terms,  
+                           in scope %T.                                     
+        GRing.formula R == the type of first order formulas over R; the %T  
+                           scope binds the logical connectives /\, \/, ~,   
+                           ==>, ==, and != to formulae; GRing.True/False    
+                           and GRing.Bool b denote constant formulae, and   
+                           quantifiers are written 'forall/'exists 'X_k, f. 
+                             GRing.Unit x tests for ring units              
+                             GRing.If p_f t_f e_f emulates if-then-else     
+                             GRing.Pick p_f t_f e_f emulates fintype.pick   
+                             foldr GRing.Exists/Forall q_f xs can be used   
+                               to write iterated quantifiers.               
+         GRing.eval e t == the value of term t with valuation e : seq R     
+                           (e maps 'X_i to e`i).                           
+  GRing.same_env e1 e2 <-> environments e1 and e2 are extensionally equal.  
+        GRing.qf_form f == f is quantifier-free.                            
+        GRing.holds e f == the intuitionistic CiC interpretation of the     
+                           formula f holds with valuation e.                
+      GRing.qf_eval e f == the value (in bool) of a quantifier-free f.      
+          GRing.sat e f == valuation e satisfies f (only in a decField).    
+          GRing.sol n f == a sequence e of size n such that e satisfies f,  
+                           if one exists, or [:: ] if there is no such e.    
+ QEdecFieldMixin wfP okP == a decidable field Mixin built from a quantifier 
+                           eliminator p and proofs wfP : GRing.wf_QE_proj p 
+                           and okP : GRing.valid_QE_proj p that p returns   
+                           well-formed and valid formulae, i.e., p i (u, v) 
+                           is a quantifier-free formula equivalent to       
+        'exists 'X_i, u1 == 0 /\ ... /\ u_m == 0 /\ v1 != 0 ... /\ v_n != 0 
+
+ClosedField (algebraically closed fields):
+
+
+        closedFieldType == interface type for the ClosedField structure.    
+    ClosedFieldType F m == packs the closed field mixin m into a            
+                           closedFieldType. The carrier F must have a       
+                           decFieldType structure.                          
+ [closedFieldType of F on S] == F-clone of a closedFieldType structure S.   
+ [closedFieldType of F] == clone of a canonicalclosedFieldType structure    
+                           on F.                                            
+ 
+Lmodule (module with left multiplication by external scalars).
+
+
+             lmodType R == interface type for an Lmodule structure with     
+                           scalars of type R; R must have a ringType        
+                           structure.                                       
+ LmodMixin scalA scal1v scalxD scalDv == builds an Lmodule mixin from the   
+                           algebraic properties of the scaling operation;   
+                           the module carrier type must have a zmodType     
+                           structure, and the scalar carrier must have a    
+                           ringType structure.                              
+         LmodType R V m == packs the mixin v to build an Lmodule of type    
+                           lmodType R. The carrier type V must have a       
+                           zmodType structure.                              
+ [lmodType R of V for S] == V-clone of an lmodType R structure S.           
+      [lmodType R of V] == clone of a canonical lmodType R structure on V.  
+                 a *: v == v scaled by a, when v is in an Lmodule V and a   
+                           is in the scalar Ring of V.                      
+        scaler_closed S <-> collective predicate S is closed under scaling. 
+        linear_closed S <-> collective predicate S is closed under linear   
+                           combinations (a *: u + v in S when u, v in S).   
+        submod_closed S <-> collective predicate S is closed under lmodType 
+                           operations (0 and a *: u + v in S).              
+      SubmodPred scaleS == packs scaleS : scaler_closed S in a submodPred S 
+                           interface structure corresponding to the above   
+                           property, provided S's key is a zmodPred;        
+                           submod_closed coerces to all the prerequisites.  
+ [lmodMixin of V by <: ] == mixin for a subType of an lmodType, whose        
+                           predicate's key is a submodPred.                 
+ 
+Lalgebra (left algebra, ring with scaling that associates on the left):
+
+
+             lalgType R == interface type for Lalgebra structures with      
+                           scalars in R; R must have ringType structure.    
+    LalgType R V scalAl == packs scalAl : k (x y) = (k x) y into an         
+                           Lalgebra of type lalgType R. The carrier type V  
+                           must have both lmodType R and ringType canonical 
+                           structures.                                      
+                    R^o == the regular algebra of R: R^o is convertible to  
+                           R, but when R has a ringType structure then R^o  
+                           extends it to an lalgType structure by letting R 
+                           act on itself: if x : R and y : R^o then         
+                           x *: y = x * (y : R).                            
+                   k%:A == the image of the scalar k in an L-algebra; this  
+                           is simply notation for k *: 1.                   
+ [lalgType R of V for S] == V-clone the lalgType R structure S.             
+      [lalgType R of V] == clone of a canonical lalgType R structure on V.  
+        subalg_closed S <-> collective predicate S is closed under lalgType 
+                           operations (1, a *: u + v and u * v in S).       
+      SubalgPred scaleS == packs scaleS : scaler_closed S in a subalgPred S 
+                           interface structure corresponding to the above   
+                           property, provided S's key is a subringPred;     
+                           subalg_closed coerces to all the prerequisites.  
+ [lalgMixin of V by <: ] == mixin axiom for a subType of an lalgType.        
+ 
+Algebra (ring with scaling that associates both left and right):
+
+
+              algType R == type for Algebra structure with scalars in R.    
+                           R should be a commutative ring.                  
+     AlgType R A scalAr == packs scalAr : k (x y) = x (k y) into an Algebra 
+                           Structure of type algType R. The carrier type A  
+                           must have an lalgType R structure.               
+        CommAlgType R A == creates an Algebra structure for an A that has   
+                           both lalgType R and comRingType structures.      
+ [algType R of V for S] == V-clone of an algType R structure on S.          
+       [algType R of V] == clone of a canonical algType R structure on V.   
+  [algMixin of V by <: ] == mixin axiom for a subType of an algType.         
+ 
+UnitAlgebra (algebra with computable inverses):
+
+
+          unitAlgType R == interface type for UnitAlgebra structure with    
+                           scalars in R; R should have a unitRingType       
+                           structure.                                       
+   [unitAlgType R of V] == a unitAlgType R structure for V created by       
+                           merging canonical algType and unitRingType on V. 
+        divalg_closed S <-> collective predicate S is closed under all      
+                           unitAlgType operations (1, a *: u + v and u / v  
+                           are in S fo u, v in S).                          
+      DivalgPred scaleS == packs scaleS : scaler_closed S in a divalgPred S 
+                           interface structure corresponding to the above   
+                           property, provided S's key is a divringPred;     
+                           divalg_closed coerces to all the prerequisites.  
+
+   In addition to this structure hierarchy, we also develop a separate,     
+ parallel hierarchy for morphisms linking these structures:                 
+ 
+Additive (additive functions):
+
+
+             additive f <-> f of type U -> V is additive, i.e., f maps the  
+                           Zmodule structure of U to that of V, 0 to 0,     
+
+
+     to - and + to + (equivalently, binary - to -). 
+
+
+
+                        := {morph f : u v / u + v}.                         
+      {additive U -> V} == the interface type for a Structure (keyed on     
+                           a function f : U -> V) that encapsulates the     
+                           additive property; both U and V must have        
+                           zmodType canonical structures.                   
+         Additive add_f == packs add_f : additive f into an additive        
+                           function structure of type {additive U -> V}.    
+   [additive of f as g] == an f-clone of the additive structure on the      
+                           function g -- f and g must be convertible.       
+        [additive of f] == a clone of an existing additive structure on f.  
+
+RMorphism (ring morphisms):
+
+
+       multiplicative f <-> f of type R -> S is multiplicative, i.e., f     
+                           maps 1 and * in R to 1 and * in S, respectively, 
+                           R ans S must have canonical ringType structures. 
+            rmorphism f <-> f is a ring morphism, i.e., f is both additive  
+                           and multiplicative.                              
+     {rmorphism R -> S} == the interface type for ring morphisms, i.e.,     
+                           a Structure that encapsulates the rmorphism      
+                           property for functions f : R -> S; both R and S  
+                           must have ringType structures.                   
+      RMorphism morph_f == packs morph_f : rmorphism f into a Ring morphism 
+                           structure of type {rmorphism R -> S}.            
+     AddRMorphism mul_f == packs mul_f : multiplicative f into an rmorphism 
+                           structure of type {rmorphism R -> S}; f must     
+                           already have an {additive R -> S} structure.     
+  [rmorphism of f as g] == an f-clone of the rmorphism structure of g.      
+       [rmorphism of f] == a clone of an existing additive structure on f.  
+
+
+    > If R and S are UnitRings the f also maps units to units and inverses   
+         of units to inverses; if R is a field then f if a field isomorphism    
+         between R and its image.                                               
+
+
+    > As rmorphism coerces to both additive and multiplicative, all          
+         structures for f can be built from a single proof of rmorphism f.      
+
+
+    > Additive properties (raddf_suffix, see below) are duplicated and       
+         specialised for RMorphism (as rmorph_suffix). This allows more         
+         precise rewriting and cleaner chaining: although raddf lemmas will     
+         recognize RMorphism functions, the converse will not hold (we cannot   
+         add reverse inheritance rules because of incomplete backtracking in    
+         the Canonical Projection unification), so one would have to insert a   
+         /= every time one switched from additive to multiplicative rules.      
+
+
+    > The property duplication also means that it is not strictly necessary  
+         to declare all Additive instances.                                     
+
+Linear (linear functions):
+
+
+             scalable f <-> f of type U -> V is scalable, i.e., f morphs    
+                           scaling on U to scaling on V, a *: _ to a *: _.  
+                           U and V must both have lmodType R structures,    
+                           for the same ringType R.                         
+       scalable_for s f <-> f is scalable for scaling operator s, i.e.,     
+                           f morphs a *: _ to s a _; the range of f only    
+                           need to be a zmodType. The scaling operator s    
+                           should be one of *:%R (see scalable, above), *%R 
+                           or a combination nu \; *%R or nu \; *:%R with    
+                           nu : {rmorphism _}; otherwise some of the theory 
+                           (e.g., the linearZ rule) will not apply.         
+               linear f <-> f of type U -> V is linear, i.e., f morphs      
+                           linear combinations a *: u + v in U to similar   
+                           linear combinations in V; U and V must both have 
+                           lmodType R structures, for the same ringType R.  
+                        := forall a, {morph f: u v / a *: u + v}.           
+               scalar f <-> f of type U -> R is a scalar function, i.e.,    
+                           f (a *: u + v) = a * f u + f v.                  
+         linear_for s f <-> f is linear for the scaling operator s, i.e.,   
+                           f (a *: u + v) = s a (f u) + f v. The range of f 
+                           only needs to be a zmodType, but s MUST be of    
+                           the form described in in scalable_for paragraph  
+                           for this predicate to type check.                
+            lmorphism f <-> f is both additive and scalable. This is in     
+                           fact equivalent to linear f, although somewhat   
+                           less convenient to prove.                        
+     lmorphism_for s f <-> f is both additive and scalable for s.           
+        {linear U -> V} == the interface type for linear functions, i.e., a 
+                           Structure that encapsulates the linear property  
+                           for functions f : U -> V; both U and V must have 
+                           lmodType R structures, for the same R.           
+             {scalar U} == the interface type for scalar functions, of type 
+                           U -> R where U has an lmodType R structure.      
+    {linear U -> V | s} == the interface type for functions linear for s.   
+           Linear lin_f == packs lin_f : lmorphism_for s f into a linear    
+                           function structure of type {linear U -> V | s}.  
+                           As linear_for s f coerces to lmorphism_for s f,  
+                           Linear can be used with lin_f : linear_for s f   
+                           (indeed, that is the recommended usage). Note    
+                           that as linear f, scalar f, {linear U -> V} and  
+                           {scalar U} are simply notation for corresponding 
+                           generic "for" forms, Linear can be used for any 
+                           of these special cases, transparently.           
+       AddLinear scal_f == packs scal_f : scalable_for s f into a           
+                           {linear U -> V | s} structure; f must already    
+                           have an additive structure; as with Linear,      
+                           AddLinear can be used with lin_f : linear f, etc 
+     [linear of f as g] == an f-clone of the linear structure of g.         
+          [linear of f] == a clone of an existing linear structure on f.    
+          (a *: u)%Rlin == transient forms that simplify to a *: u, a * u,  
+           (a * u)%Rlin    nu a *: u, and nu a * u, respectively, and are   
+       (a *:^nu u)%Rlin    created by rewriting with the linearZ lemma. The 
+        (a *^nu u)%Rlin    forms allows the RHS of linearZ to be matched    
+                           reliably, using the GRing.Scale.law structure.   
+
+
+    > Similarly to Ring morphisms, additive properties are specialized for    
+        linear functions.                                                       
+
+
+    > Although {scalar U} is convertible to {linear U -> R^o}, it does not    
+        actually use R^o, so that rewriting preserves the canonical structure   
+        of the range of scalar functions.                                       
+
+
+    > The generic linearZ lemma uses a set of bespoke interface structures to 
+        ensure that both left-to-right and right-to-left rewriting work even in 
+        the presence of scaling functions that simplify non-trivially (e.g.,    
+        idfun \; *%R). Because most of the canonical instances and projections  
+        are coercions the machinery will be mostly invisible (with only the     
+        {linear ...} structure and %Rlin notations showing), but users should   
+        beware that in (a *: f u)%Rlin, a actually occurs in the f u subterm.   
+
+
+    > The simpler linear_LR, or more specialized linearZZ and scalarZ rules   
+        should be used instead of linearZ if there are complexity issues, as    
+        well as for explicit forward and backward application, as the main      
+        parameter of linearZ is a proper sub-interface of {linear fUV | s}.     
+
+LRMorphism (linear ring morphisms, i.e., algebra morphisms):
+
+
+           lrmorphism f <-> f of type A -> B is a linear Ring (Algebra)     
+                           morphism: f is both additive, multiplicative and 
+                           scalable. A and B must both have lalgType R      
+                           canonical structures, for the same ringType R.   
+     lrmorphism_for s f <-> f a linear Ring morphism for the scaling        
+                           operator s: f is additive, multiplicative and    
+                           scalable for s. A must be an lalgType R, but B   
+                           only needs to have a ringType structure.         
+    {lrmorphism A -> B} == the interface type for linear morphisms, i.e., a 
+                           Structure that encapsulates the lrmorphism       
+                           property for functions f : A -> B; both A and B  
+                           must have lalgType R structures, for the same R. 
+ {lrmorphism A -> B | s} == the interface type for morphisms linear for s.  
+   LRmorphism lrmorph_f == packs lrmorph_f : lrmorphism_for s f into a      
+                           linear morphism structure of type                
+                           {lrmorphism A -> B | s}. Like Linear, LRmorphism 
+                           can be used transparently for lrmorphism f.      
+   AddLRmorphism scal_f == packs scal_f : scalable_for s f into a linear    
+                           morphism structure of type                       
+                           {lrmorphism A -> B | s}; f must already have an  
+                           {rmorphism A -> B} structure, and AddLRmorphism  
+                           can be applied to a linear_for s f, linear f,    
+                           scalar f, etc argument, like AddLinear.          
+      [lrmorphism of f] == creates an lrmorphism structure from existing    
+                           rmorphism and linear structures on f; this is    
+                           the preferred way of creating lrmorphism         
+                           structures.                                      
+
+
+    > Linear and rmorphism properties do not need to be specialized for      
+         as we supply inheritance join instances in both directions.            
+
+ Finally we supply some helper notation for morphisms:                      
+                    x^f == the image of x under some morphism. This         
+                           notation is only reserved (not defined) here;    
+                           it is bound locally in sections where some       
+                           morphism is used heavily (e.g., the container    
+                           morphism in the parametricity sections of poly   
+                           and matrix, or the Frobenius section here).      
+                     \0 == the constant null function, which has a          
+                           canonical linear structure, and simplifies on    
+                           application (see ssrfun.v).                      
+                 f \+ g == the additive composition of f and g, i.e., the   
+                           function x |-> f x + g x; f \+ g is canonically  
+                           linear when f and g are, and simplifies on       
+                           application (see ssrfun.v).                      
+                 f \- g == the function x |-> f x - g x, canonically        
+                           linear when f and g are, and simplifies on       
+                           application.                                     
+                k \*: f == the function x |-> k *: f x, which is            
+                           canonically linear when f is and simplifies on   
+                           application (this is a shorter alternative to    
+                           *:%R k \o f).                                    
+         GRing.in_alg A == the ring morphism that injects R into A, where A 
+                           has an lalgType R structure; GRing.in_alg A k    
+                           simplifies to k%:A.                              
+                a \*o f == the function x |-> a * f x, canonically linear   
+                           linear when f is and its codomain is an algType  
+                           and which simplifies on application.             
+                a \o* f == the function x |-> f x * a, canonically linear   
+                           linear when f is and its codomain is an lalgType 
+                           and which simplifies on application.             
+ The Lemmas about these structures are contained in both the GRing module   
+ and in the submodule GRing.Theory, which can be imported when unqualified  
+ access to the theory is needed (GRing.Theory also allows the unqualified   
+ use of additive, linear, Linear, etc). The main GRing module should NOT be 
+ imported.                                                                  
+   Notations are defined in scope ring_scope (delimiter %R), except term    
+ and formula notations, which are in term_scope (delimiter %T).             
+   This library also extends the conventional suffixes described in library 
+ ssrbool.v with the following:                                              
+   0 -- ring 0, as in addr0 : x + 0 = x.                                    
+   1 -- ring 1, as in mulr1 : x * 1 = x.                                    
+   D -- ring addition, as in linearD : f (u + v) = f u + f v.               
+   B -- ring subtraction, as in opprB : - (x - y) = y - x.                  
+   M -- ring multiplication, as in invfM : (x * y)^-1 = x^-1 * y^-1.        
+  Mn -- ring by nat multiplication, as in raddfMn : f (x *+ n) = f x *+ n.  
+   N -- ring opposite, as in mulNr : (- x) * y = - (x * y).                 
+   V -- ring inverse, as in mulVr : x^-1 * x = 1.                           
+   X -- ring exponentiation, as in rmorphX : f (x ^+ n) = f x ^+ n.         
+   Z -- (left) module scaling, as in linearZ : f (a *: v)  = s *: f v.      
+ The operator suffixes D, B, M and X are also used for the corresponding    
+ operations on nat, as in natrX : (m ^ n)%:R = m%:R ^+ n. For the binary    
+ power operator, a trailing "n" suffix is used to indicate the operator     
+ suffix applies to the left-hand ring argument, as in                       
+   expr1n : 1 ^+ n = 1 vs. expr1 : x ^+ 1 = x.                               
+#+END_EXAMPLE
+*** mathcomp.algebra.ring_quotient
+https://math-comp.github.io/htmldoc/mathcomp.algebra.ring_quotient.html
+#+BEGIN_EXAMPLE
+This file describes quotients of algebraic structures.            
+ 
+ It defines a  join hierarchy mxing the structures defined  in file ssralg  
+ (up to  unit ring type)  and the  quotType quotient structure  defined in  
+ file  generic_quotient.   Every structure  in  that  (join) hierarchy  is  
+ parametrized by  a base type  T and the  constants and operations  on the  
+ base type  that will  be used  to confer its  algebraic structure  to the  
+ quotient.  Note  that T  itself  is  in general  not  an  instance of  an  
+ algebraic structure.  The  canonical surjection from T  onto its quotient  
+ should be compatible with the parameter operations.                        
+ 
+ The  second part  of  the file  provides a  definition  of (non  trivial)  
+ decidable ideals  (resp. prime ideals)  of an arbitrary instance  of ring  
+ structure and a construction of the quotient  of a ring by such an ideal.  
+ These definitions extend the hierarchy  of sub-structures defined in file  
+ ssralg (see Module Pred in ssralg), following a similar methodology.       
+ Although the definition of the (structure of) quotient of a ring by an     
+ ideal is a general one, we do not provide infrastructure for the case of   
+ non commutative ring and left or two-sided ideals.                         
+
+ The file defines the following Structures:                                 
+ zmodQuotType T e z n a     == Z-module  obtained  by  quotienting type  T  
+                               with  the  relation  e  and  whose neutral,  
+                               opposite and addition are the images in the  
+                               quotient  of  the  parameters  z,  n and a,  
+                               respectively.                                
+ ringQuotType T e z n a o m == ring  obtained  by quotienting  type T with  
+                               the relation e  and  whose zero opposite,    
+                               addition, one, and multiplication are  the   
+                               images  in  the  quotient  of the parameters 
+                               z, n, a, o, m, respectively.                 
+   unitRingQuotType ... u i == As in the previous cases, instance of unit   
+                               ring whose unit predicate  is obtained from  
+                               u and the inverse from i.                    
+                 idealr R S == S : {pred R} is a non-trivial, decidable,    
+                               right ideal of the ring R.                   
+           prime_idealr R S == S : {pred R} is a non-trivial, decidable,    
+                               right, prime ideal of the ring R.            
+
+ The formalization of ideals features the following constructions:          
+       proper_ideal S == the  collective predicate (S : pred R) on the      
+                             ring R is stable by the ring product and does  
+                             contain R's one.                               
+   prime_idealr_closed S  := u * v \in S -> (u \in S) || (v \in S)          
+          idealr_closed S == the collective predicate (S : pred R) on the   
+                             ring  R  represents  a  (right) ideal.  This   
+                             implies its being a proper_ideal.              
+
+           MkIdeal idealS == packs idealS : proper_ideal S into an idealr S 
+                             interface structure associating the            
+                             idealr_closed   property   to  the   canonical 
+                             pred_key S  (see ssrbool), which  must already 
+                             be a zmodPred (see ssralg).                    
+     MkPrimeIdeal pidealS == packs  pidealS : prime_idealr_closed S  into a 
+                             prime_idealr S interface structure associating 
+                             the  prime_idealr_closed   property   to   the 
+                             canonical pred_key S (see ssrbool), which must 
+                             already be an idealr (see above).              
+          {ideal_quot kI} == quotient by the keyed (right) ideal predicate  
+                             kI of a commutative ring R. Note that we only  
+                             provide canonical structures of ring quotients 
+                             for commutative rings, in which a right ideal  
+                             is obviously a two-sided ideal.                
+
+ Note :                                                                     
+ if (I : pred R) is a predicate over a ring R and (ideal : idealr I) is an  
+ instance of (right) ideal, in order to quantify over an arbitrary (keyed)  
+ predicate describing  ideal, use  type (keyed_pred  ideal), as  in:        
+     forall (kI : keyed_pred ideal),...                                      
+
+#+END_EXAMPLE
+*** mathcomp.algebra.countalg
+https://math-comp.github.io/htmldoc/mathcomp.algebra.countalg.html
+#+BEGIN_EXAMPLE
+This file clones part of ssralg hierachy for countable types; it does not 
+ cover the left module / algebra interfaces, providing only                
+          countZmodType == countable zmodType interface.                   
+          countRingType == countable ringType interface.                   
+       countComRingType == countable comRingType interface.                
+      countUnitRingType == countable unitRingType interface.               
+   countComUnitRingType == countable comUnitRingType interface.            
+       countIdomainType == countable idomainType interface.                
+         countFieldType == countable fieldType interface.                  
+      countDecFieldType == countable decFieldType interface.               
+   countClosedFieldType == countable closedFieldType interface.            
+ The interface cloning syntax is extended to these structures              
+   [countZmodType of M] == countZmodType structure for an M that has both  
+                           zmodType and countType structures.              
+                    ... etc                                                
+ This file provides constructions for both simple extension and algebraic  
+ closure of countable fields.                                               
+#+END_EXAMPLE
+*** mathcomp.algebra.finalg
+https://math-comp.github.io/htmldoc/mathcomp.algebra.finalg.html
+#+BEGIN_EXAMPLE
+This file clones the entire ssralg hierachy for finite types; this allows 
+ type inference to function properly on expressions that mix combinatorial 
+ and algebraic operators (e.g., [set x + y | x in A, y in A]).             
+   finZmodType, finRingType, finComRingType, finUnitRingType,              
+   finComUnitRingType, finIdomType, finFieldType finLmodType,              
+   finLalgType finAlgType finUnitAlgType                                   
+      == the finite counterparts of zmodType, etc.                         
+ Note that a finFieldType is canonically decidable. All these structures   
+ can be derived using [xxxType of T] forms, e.g., if R has both canonical  
+ finType and ringType structures, then                                     
+     Canonical R_finRingType := Eval hnf in [finRingType of R].            
+ declares the derived finRingType structure for R. As the implementation   
+ of the derivation is somewhat involved, the Eval hnf normalization is     
+ strongly recommended.                                                     
+   This file also provides direct tie-ins with finite group theory:        
+  [baseFinGroupType of R for +%R] == the (canonical) additive group        
+      [finGroupType of R for +%R]    structures for R                      
+                         {unit R} == the type of units of R, which has a   
+                                     canonical group structure.            
+                FinRing.unit R Ux == the element of {unit R} corresponding 
+                                     to x, where Ux : x \in GRing.unit.    
+                           'U%act == the action by right multiplication of 
+                                     {unit R} on R, via FinRing.unit_act.  
+                                     (This is also a group action.)         
+#+END_EXAMPLE
+*** mathcomp.algebra.zmodp
+https://math-comp.github.io/htmldoc/mathcomp.algebra.zmodp.html
+#+BEGIN_EXAMPLE
+Definition of the additive group and ring Zp, represented as 'I_p          
+
+  Definitions:                                                               
+ From fintype.v:                                                            
+     'I_p == the subtype of integers less than p, taken here as the type of 
+             the integers mod p.                                            
+ This file:                                                                 
+     inZp == the natural projection from nat into the integers mod p,       
+             represented as 'I_p. Here p is implicit, but MUST be of the    
+             form n.+1.                                                     
+ The operations:                                                            
+      Zp0 == the identity element for addition                              
+      Zp1 == the identity element for multiplication, and a generator of    
+             additive group                                                 
+   Zp_opp == inverse function for addition                                  
+   Zp_add == addition                                                       
+   Zp_mul == multiplication                                                 
+   Zp_inv == inverse function for multiplication                            
+ Note that while 'I_n.+1 has canonical finZmodType and finGroupType         
+ structures, only 'I_n.+2 has a canonical ring structure (it has, in fact,  
+ a canonical finComUnitRing structure), and hence an associated             
+ multiplicative unit finGroupType. To mitigate the issues caused by the     
+ trivial "ring" (which is, indeed is NOT a ring in the ssralg/finalg        
+ formalization), we define additional notation:                             
+       'Z_p == the type of integers mod (max p 2); this is always a proper  
+               ring, by constructions. Note that 'Z_p is provably equal to  
+               'I_p if p > 1, and convertible to 'I_p if p is of the form   
+               n.+2.                                                        
+       Zp p == the subgroup of integers mod (max p 1) in 'Z_p; this is thus 
+               is thus all of 'Z_p if p > 1, and else the trivial group.    
+ units_Zp p == the group of all units of 'Z_p -- i.e., the group of         
+               (multiplicative) automorphisms of Zp p.                      
+ We show that Zp and units_Zp are abelian, and compute their orders.        
+ We use a similar technique to represent the prime fields:                  
+        'F_p == the finite field of integers mod the first prime divisor of 
+                maxn p 2. This is provably equal to 'Z_p and 'I_p if p is   
+                provably prime, and indeed convertible to the above if p is 
+                a concrete prime such as 2, 5 or 23.                        
+ Note finally that due to the canonical structures it is possible to use    
+ 0%R instead of Zp0, and 1%R instead of Zp1 (for the latter, p must be of   
+ the form n.+2, and 1%R : nat will simplify to 1%N).                         
+#+END_EXAMPLE
+*** mathcomp.algebra.matrix
+https://math-comp.github.io/htmldoc/mathcomp.algebra.matrix.html
+#+BEGIN_EXAMPLE
+Basic concrete linear algebra : definition of type for matrices, and all   
+ basic matrix operations including determinant, trace and support for block 
+ decomposition. Matrices are represented by a row-major list of their       
+ coefficients but this implementation is hidden by three levels of wrappers 
+ (Matrix/Finfun/Tuple) so the matrix type should be treated as abstract and 
+ handled using only the operations described below:                         
+   'M[R](m, n) == the type of m rows by n columns matrices with            
+   'M(m, n)       coefficients in R; the [R] is optional and is usually    
+                   omitted.                                                 
+  'M[R]_n, 'M_n == the type of n x n square matrices.                       
+ 'rV[R]_n, 'rV_n == the type of 1 x n row vectors.                          
+ 'cV[R]_n, 'cV_n == the type of n x 1 column vectors.                       
+  \matrix(i < m, j < n) Expr(i, j) ==                                      
+                   the m x n matrix with general coefficient Expr(i, j),    
+                   with i : 'I_m and j : 'I_n. the < m bound can be omitted 
+                   if it is equal to n, though usually both bounds are      
+                   omitted as they can be inferred from the context.        
+  \row(j < n) Expr(j), \col(i < m) Expr(i)                                
+                   the row / column vectors with general term Expr; the     
+                   parentheses can be omitted along with the bound.         
+ \matrix(i < m) RowExpr(i) ==                                              
+                   the m x n matrix with row i given by RowExpr(i) : 'rV_n. 
+          A i j == the coefficient of matrix A : 'M(m, n) in column j of   
+                   row i, where i : 'I_m, and j : 'I_n (via the coercion    
+                   fun_of_matrix : matrix >-> Funclass).                    
+     const_mx a == the constant matrix whose entries are all a (dimensions  
+                   should be determined by context).                        
+     map_mx f A == the pointwise image of A by f, i.e., the matrix Af       
+                   congruent to A with Af i j = f (A i j) for all i and j.  
+            A^T == the matrix transpose of A.                               
+        row i A == the i'th row of A (this is a row vector).                
+        col j A == the j'th column of A (a column vector).                  
+       row' i A == A with the i'th row spliced out.                         
+       col' i A == A with the j'th column spliced out.                      
+   xrow i1 i2 A == A with rows i1 and i2 interchanged.                      
+   xcol j1 j2 A == A with columns j1 and j2 interchanged.                   
+   row_perm s A == A : 'M(m, n) with rows permuted by s : 'S_m.            
+   col_perm s A == A : 'M(m, n) with columns permuted by s : 'S_n.         
+   row_mx Al Ar == the row block matrix <Al Ar> obtained by contatenating   
+                   two matrices Al and Ar of the same height.               
+   col_mx Au Ad == the column block matrix / Au \ (Au and Ad must have the  
+                   same width).            \ Ad /                           
+ block_mx Aul Aur Adl Adr == the block matrix / Aul Aur \                   
+                                              \ Adl Adr /                   
+   [l|r]submx A == the left/right submatrices of a row block matrix A.      
+                   Note that the type of A, 'M(m, n1 + n2) indicates how A 
+                   should be decomposed.                                    
+   [u|d]submx A == the up/down submatrices of a column block matrix A.      
+ [u|d] [l|r]submx A == the upper left, etc submatrices of a block matrix A.  
+ castmx eq_mn A == A : 'M(m, n) cast to 'M(m', n') using the equation     
+                   pair eq_mn : (m = m') * (n = n'). This is the usual      
+                   workaround for the syntactic limitations of dependent    
+                   types in Coq, and can be used to introduce a block       
+                   decomposition. It simplifies to A when eq_mn is the      
+                   pair (erefl m, erefl n) (using rewrite /castmx /=).      
+ conform_mx B A == A if A and B have the same dimensions, else B.           
+        mxvec A == a row vector of width m * n holding all the entries of   
+                   the m x n matrix A.                                      
+ mxvec_index i j == the index of A i j in mxvec A.                          
+       vec_mx v == the inverse of mxvec, reshaping a vector of width m * n  
+                   back into into an m x n rectangular matrix.              
+ In 'M[R](m, n), R can be any type, but 'M[R](m, n) inherits the eqType,  
+ choiceType, countType, finType, zmodType structures of R; 'M[R](m, n)     
+ also has a natural lmodType R structure when R has a ringType structure.   
+ Because the type of matrices specifies their dimension, only non-trivial   
+ square matrices (of type 'M[R]_n.+1) can inherit the ring structure of R;  
+ indeed they then have an algebra structure (lalgType R, or algType R if R  
+ is a comRingType, or even unitAlgType if R is a comUnitRingType).          
+   We thus provide separate syntax for the general matrix multiplication,   
+ and other operations for matrices over a ringType R:                       
+         A *m B == the matrix product of A and B; the width of A must be    
+                   equal to the height of B.                                
+           a%:M == the scalar matrix with a's on the main diagonal; in      
+                   particular 1%:M denotes the identity matrix, and is is   
+                   equal to 1%R when n is of the form n'.+1 (e.g., n >= 1). 
+ is_scalar_mx A <=> A is a scalar matrix (A = a%:M for some A).             
+      diag_mx d == the diagonal matrix whose main diagonal is d : 'rV_n.    
+   delta_mx i j == the matrix with a 1 in row i, column j and 0 elsewhere.  
+       pid_mx r == the partial identity matrix with 1s only on the r first  
+                   coefficients of the main diagonal; the dimensions of     
+                   pid_mx r are determined by the context, and pid_mx r can 
+                   be rectangular.                                          
+     copid_mx r == the complement to 1%:M of pid_mx r: a square diagonal    
+                   matrix with 1s on all but the first r coefficients on    
+                   its main diagonal.                                       
+      perm_mx s == the n x n permutation matrix for s : 'S_n.               
+ tperm_mx i1 i2 == the permutation matrix that exchanges i1 i2 : 'I_n.      
+   is_perm_mx A == A is a permutation matrix.                               
+     lift0_mx A == the 1 + n square matrix block_mx 1 0 0 A when A : 'M_n.  
+          \tr A == the trace of a square matrix A.                          
+         \det A == the determinant of A, using the Leibnitz formula.        
+ cofactor i j A == the i, j cofactor of A (the signed i, j minor of A),     
+         \adj A == the adjugate matrix of A (\adj A i j = cofactor j i A).  
+   A \in unitmx == A is invertible (R must be a comUnitRingType).           
+        invmx A == the inverse matrix of A if A \in unitmx A, otherwise A.  
+ The following operations provide a correspondance between linear functions 
+ and matrices:                                                              
+     lin1_mx f == the m x n matrix that emulates via right product          
+                  a (linear) function f : 'rV_m -> 'rV_n on ROW VECTORS     
+      lin_mx f == the (m1 * n1) x (m2 * n2) matrix that emulates, via the   
+                  right multiplication on the mxvec encodings, a linear     
+                  function f : 'M(m1, n1) -> 'M(m2, n2)                   
+ lin_mul_row u := lin1_mx (mulmx u \o vec_mx) (applies a row-encoded        
+                  function to the row-vector u).                            
+       mulmx A == partially applied matrix multiplication (mulmx A B is     
+                  displayed as A *m B), with, for A : 'M(m, n), a          
+                  canonical {linear 'M(n, p) -> 'M(m, p}} structure.       
+      mulmxr A == self-simplifying right-hand matrix multiplication, i.e.,  
+                  mulmxr A B simplifies to B *m A, with, for A : 'M(n, p), 
+                  a canonical {linear 'M(m, n) -> 'M(m, p}} structure.     
+   lin_mulmx A := lin_mx (mulmx A).                                         
+  lin_mulmxr A := lin_mx (mulmxr A).                                        
+ We also extend any finType structure of R to 'M[R](m, n), and define:     
+     {'GL_n[R]} == the finGroupType of units of 'M[R]_n.-1.+1.              
+      'GL_n[R]  == the general linear group of all matrices in {'GL_n(R)}.  
+      'GL_n(p)  == 'GL_n['F_p], the general linear group of a prime field.  
+       GLval u  == the coercion of u : {'GL_n(R)} to a matrix.              
+   In addition to the lemmas relevant to these definitions, this file also  
+ proves several classic results, including :                                
+
+     The determinant is a multilinear alternate form.                         
+
+     The Laplace determinant expansion formulas: expand_det [row|col].        
+
+     The Cramer rule : mul_mx_adj & mul_adj_mx.                               
+
+ Finally, as an example of the use of block products, we program and prove  
+ the correctness of a classical linear algebra algorithm:                   
+    cormenLUP A == the triangular decomposition (L, U, P) of a nontrivial   
+                   square matrix A into a lower triagular matrix L with 1s  
+                   on the main diagonal, an upper matrix U, and a           
+                   permutation matrix P, such that P * A = L * U.           
+ This is example only; we use a different, more precise algorithm to        
+ develop the theory of matrix ranks and row spaces in mxalgebra.v            
+#+END_EXAMPLE

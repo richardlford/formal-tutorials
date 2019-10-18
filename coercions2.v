@@ -12,7 +12,9 @@ Module MyRadix.
   Definition radix2 := Build_radix 2 (eq_refl _).
   Check radix2.
   Check radix2:Z.
-  Compute (radix2+2)%Z.
+  Print Coercions.
+  Definition radplustwo := (radix2+2)%Z.
+  Compute radplustwo.
   Print Graph.
 End MyRadix.
 
