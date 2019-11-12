@@ -1,0 +1,49 @@
+<!--  -*- mode: org; -*- -->
+Coquelicot is a user-friendly formalization of Reals and Analysis in Coq.
+
+Expansion of limit for the finite case where it is ok to include x in the domain of f.
+
+locally x P :=
+  exists eps, forall y, ball x eps y -> P y
+
+filterlim {T U : Type} (f : T -> U) F G :=
+  filter_le (filtermap f F) G.
+
+filter_le {T : Type} (F G : (T -> Prop) -> Prop) :=
+  forall P, G P -> F P.
+
+filtermap {T U : Type} (f : T -> U) (F : (T -> Prop) -> Prop) :=
+  fun P => F (fun x => P (f x)).
+
+is_limf (f: R-> R) (x l : R)
+  := filterlim f (locally x) (locally l)
+  := filter_le (filtermap f (locally x)) (locally l).
+  := filter_le (fun P => (locally x) (fun x => P (f x))) (locally l)
+  := forall P, (fun P => (locally x) (fun x => P (f x))) P -> (locally l) P
+  := forall P, (locally x) (fun x => P (f x)) -> (locally l) P
+  := forall P,
+       (exists eps, forall y, ball x eps y -> P (f y))
+       ->
+       (exists eps, forall y', ball l eps y' -> P y)
+
+But we would like to show that
+
+is_limf (f: R-> R) (x l : R)
+  := forall eps > 0, exists delta > 0,
+         forall x', ball x delta x' -> ball l eps (f x').
+
+Lemma [filterlim_locally] gives the traditional epsilon-delta definition of
+continuity.
+
+Lemma filterlim_locally :
+  forall {F} {FF : Filter F} (f : T -> U) y,
+  filterlim f F (locally y) <->
+  forall eps : posreal, F (fun x => ball y eps (f x)).
+
+Lemmas [is_lim_seq_spec] and [is_lim_sprec] gives the traditional epsilon-delta
+definition of convergence.
+
+Lemma is_lim_seq_spec :
+  forall u l,
+  is_lim_seq' u l <-> is_lim_seq u l.
+
