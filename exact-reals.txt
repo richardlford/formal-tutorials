@@ -1,0 +1,68 @@
+<!--  -*- mode: org; -*- -->
+#+TITLE: Exact Reals
+#+OPTIONS: H:5
+#+STARTUP: showeverything
+* Introduction
+This article will summarize some of the work on exact real arithmetics
+being done at Nijmegen.  See http://corn.cs.ru.nl and the sources at
+https://github.com/coq-community/corn.  CoRN stands for "Coq
+Repository at Nijmegen". This work is inspired by Erret Bishop's
+constructive analysis (See the book, Constructive Analysis,by Erret
+Biship and Douglas Bridges).
+
+* Regular sequences and functions
+
+Bishop defines a real number as a "regular sequence" of rational
+numbers, which is a sequence x[n] such that
+
+#+BEGIN_EXAMPLE
+  abs(x[m]- x[n]) <= 1/m + 1/n, for any n, m positive integers. 
+#+END_EXAMPLE
+
+Two real numbers are defined to be equal if
+
+#+BEGIN_EXAMPLE
+  abs(x[n]- y[n]) <= 2/n, for any n positive integers. 
+#+END_EXAMPLE
+
+In the following, when we give code from CoRN we specify the location
+of the file in that repository.
+
+By analogy, CoRN defines regular functions (ode/metric.v) as follows:
+
+#+BEGIN_EXAMPLE
+Class IsRegularFunction (f : Q -> X) : Prop :=
+  rf_prf : forall e1 e2 : Q, 0 < e1 -> 0 < e2 -> ball (e1 + e2) (f e1) (f e2).
+
+Record RegularFunction := {
+  rf_func :> Q -> X;
+  rf_proof : IsRegularFunction rf_func
+}.
+#+END_EXAMPLE
+
+The idea is that a regular function F gives approximations of a real
+number. (F epsilon) approximates the real number to within error bound
+epsilon. In Coq a regular function is represented by a record in which
+the first component is the approximation function and the second
+component is a proof that it is indeed a regular function.
+
+The type X above is a metric space and (ball e x1 x2) means that
+values x1 and x2 in the metric space are within distance e of each
+other.
+
+* Uniformly Continuous Functions
+Another key concept is that of uniform continuity. Bishop's definition
+(I think he only deals with uniform continuity, so he leaves out the
+"uniform" part) is:
+
+A real-valued function f defined on a compact interval I is continuous
+on I if for each epsilon > 0 there exists omega(epsilon) such that 
+
+#+BEGIN_EXAMPLE
+abs(f(x) - f(y)) <= epsilon whenever x, y in I and 
+abs(x - y) <= omega(epsilon)
+#+END_EXAMPLE
+
+The operation omega is called the modulus of continuity for f. If you
+wanted to compute f(x) to within error e1, then you need to compute x
+with precision omega(e1). 
